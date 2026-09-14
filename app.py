@@ -137,6 +137,7 @@ st.markdown(
       [data-testid="stHorizontalBlock"] { gap:.65rem !important; flex-wrap:wrap !important; }
       .stButton > button, .stLinkButton > a, [data-testid="stDownloadButton"] button { width:100%; min-height:47px; }
       h1 { font-size:1.7rem !important; } h2 { font-size:1.35rem !important; } h3 { font-size:1.08rem !important; }
+      [data-testid="stRadio"] > div { flex-wrap:wrap !important; gap:.35rem !important; }
     }
     </style>
     ''',
@@ -274,18 +275,17 @@ def make_ics(events: list[dict]) -> str:
     return '\r\n'.join(chunks)
 
 
-# ---------- Sidebar ----------
-with st.sidebar:
-    st.markdown('## 🏠 District 11')
-    st.caption('Shared home portal')
-    page = st.radio(
-        'Navigate',
-        ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders', 'Bills', 'Household'],
-        label_visibility='collapsed',
-    )
-    st.divider()
-    st.caption('Members')
-    st.write(' · '.join(m['name'] for m in members))
+# ---------- Always-visible navigation ----------
+st.markdown("<div style='margin-bottom:.35rem'><span class='pill'>District 11</span></div>", unsafe_allow_html=True)
+page = st.radio(
+    'Navigate',
+    ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders', 'Bills', 'Household'],
+    horizontal=True,
+    label_visibility='collapsed',
+    key='top_navigation',
+)
+st.caption('Household: ' + ' · '.join(m['name'] for m in members))
+st.divider()
 
 
 # ---------- Shared week selector ----------
@@ -311,6 +311,61 @@ if page == 'Home':
     c2.metric('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))))
     c3.metric('Transfers left', str(len(transfers)))
     c4.metric('Upcoming reminders', str(len(upcoming_events)))
+
+    st.subheader('Quick add')
+    quick_tab1, quick_tab2, quick_tab3 = st.tabs(['🛒 Shopping', '💳 Expense', '🔔 Reminder'])
+
+    with quick_tab1:
+        with st.form('home_add_shopping', clear_on_submit=True):
+            qa, qb = st.columns([2, 1])
+            q_item = qa.text_input('Item', placeholder='Milk, rice, washing liquid…', key='home_shopping_item')
+            q_qty = qb.text_input('Quantity', placeholder='2 packs', key='home_shopping_qty')
+            q_added = st.selectbox('Added by', [m['name'] for m in members], key='home_shopping_added_by')
+            if st.form_submit_button('Add to shopping list', type='primary', use_container_width=True):
+                if not q_item.strip():
+                    st.error('Enter an item name.')
+                else:
+                    db.add_shopping_item(household['id'], q_item, q_qty, member_id_by_name[q_added])
+                    st.success('Added to shopping list.')
+                    st.rerun()
+
+    with quick_tab2:
+        with st.form('home_add_expense', clear_on_submit=True):
+            ea, eb = st.columns(2)
+            q_desc = ea.text_input('What was it?', placeholder='Tesco groceries', key='home_expense_desc')
+            q_amount = eb.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='home_expense_amount')
+            ec, ed = st.columns(2)
+            q_payer = ec.selectbox('Who paid?', [m['name'] for m in members], key='home_expense_payer')
+            q_date = ed.date_input('Date', value=date.today(), key='home_expense_date')
+            q_split = st.multiselect('Who should share this cost?', [m['name'] for m in members], default=[m['name'] for m in members], key='home_expense_split')
+            if st.form_submit_button('Add expense', type='primary', use_container_width=True):
+                if not q_desc.strip():
+                    st.error('Enter a description.')
+                elif not q_split:
+                    st.error('Choose at least one person.')
+                else:
+                    q_pence = to_pence(q_amount)
+                    q_ids = [member_id_by_name[n] for n in q_split]
+                    db.add_expense(household['id'], member_id_by_name[q_payer], q_desc, q_pence, q_date, equal_split(q_pence, q_ids))
+                    st.success('Expense added.')
+                    st.rerun()
+
+    with quick_tab3:
+        with st.form('home_add_reminder', clear_on_submit=True):
+            ra, rb = st.columns(2)
+            q_title = ra.text_input('Reminder / event', placeholder='Bin day, rent, appointment…', key='home_reminder_title')
+            q_day = rb.date_input('Date', value=date.today(), key='home_reminder_date')
+            rc, rd = st.columns(2)
+            q_has_time = rc.checkbox('Add a time', key='home_reminder_has_time')
+            q_time = rd.time_input('Time', value=time(18, 0), disabled=not q_has_time, key='home_reminder_time')
+            q_notes = st.text_area('Notes', placeholder='Optional details', key='home_reminder_notes')
+            if st.form_submit_button('Add reminder', type='primary', use_container_width=True):
+                if not q_title.strip():
+                    st.error('Enter a reminder title.')
+                else:
+                    db.add_event(household['id'], q_title, q_notes, q_day, q_time if q_has_time else None)
+                    st.success('Reminder added.')
+                    st.rerun()
 
     st.subheader('This week at a glance')
     if expenses:
@@ -606,7 +661,7 @@ elif page == 'Bills':
     with st.form('add_bill', clear_on_submit=True):
         a, b, c = st.columns(3)
         bill_name = a.text_input('Bill', placeholder='WiFi, rent, council tax…', key='bill_name')
-        bill_amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='expense_amount')
+        bill_amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='bill_amount')
         due_day = c.number_input('Due day', min_value=1, max_value=31, value=1, step=1)
         payer = st.selectbox('Usually paid by', ['Not fixed'] + [m['name'] for m in members])
         submitted = st.form_submit_button('Add regular bill', type='primary', use_container_width=True)
