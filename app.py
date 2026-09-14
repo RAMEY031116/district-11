@@ -312,6 +312,21 @@ if page == 'Home':
     c3.metric('Transfers left', str(len(transfers)))
     c4.metric('Upcoming reminders', str(len(upcoming_events)))
 
+    # Fast phone actions: prepare live data and hand it to WhatsApp.
+    home_summary = weekly_summary(current_start, week_end, expenses, splits_by_expense, settlements, transfers, shopping)
+    share1, share2 = st.columns(2)
+    share1.link_button(
+        '📲 Share shopping list on WhatsApp',
+        whatsapp_share_url(shopping_text(shopping)),
+        type='primary',
+        use_container_width=True,
+    )
+    share2.link_button(
+        '📲 Share weekly balance on WhatsApp',
+        whatsapp_share_url(home_summary),
+        use_container_width=True,
+    )
+
     st.subheader('Quick add')
     quick_tab1, quick_tab2, quick_tab3 = st.tabs(['🛒 Shopping', '💳 Expense', '🔔 Reminder'])
 
@@ -394,12 +409,23 @@ if page == 'Home':
     with right:
         st.subheader('Coming up')
         if upcoming_events:
-            for event in upcoming_events[:6]:
-                when = parse_db_date(event['event_date']).strftime('%a %d %b')
+            today = date.today()
+            tomorrow = today + timedelta(days=1)
+            for event in upcoming_events[:8]:
+                event_day = parse_db_date(event['event_date'])
+                if event_day == today:
+                    day_label = 'Today'
+                elif event_day == tomorrow:
+                    day_label = 'Tomorrow'
+                else:
+                    day_label = event_day.strftime('%a %d %b')
+                when = day_label
                 if event.get('event_time'):
                     when += f" · {str(event['event_time'])[:5]}"
+                notes = event.get('description') or ''
+                note_html = f"<div class='card-sub'>{notes}</div>" if notes else ''
                 st.markdown(
-                    f"<div class='card'><div class='card-title'>{event['title']}</div><div class='card-sub'>{when}</div></div>",
+                    f"<div class='card'><div class='card-title'>🔔 {event['title']}</div><div class='card-sub'>{when}</div>{note_html}</div>",
                     unsafe_allow_html=True,
                 )
         else:
@@ -436,7 +462,7 @@ elif page == 'Shopping':
     active = [x for x in shopping if not x.get('is_bought')]
     bought = [x for x in shopping if x.get('is_bought')]
 
-    st.link_button('📲 Share current list on WhatsApp', whatsapp_share_url(shopping_text(shopping)), use_container_width=True)
+    st.link_button('📲 Open WhatsApp with latest shopping list', whatsapp_share_url(shopping_text(shopping)), type='primary', use_container_width=True)
 
     st.subheader(f'To buy · {len(active)}')
     if not active:
@@ -555,7 +581,7 @@ elif page == 'Balance':
                 st.metric(member['name'], '£0.00', 'settled')
 
     summary = weekly_summary(selected_start, selected_end, expenses, splits_by_expense, settlements, transfers, shopping)
-    st.link_button('📲 Share weekly summary on WhatsApp', whatsapp_share_url(summary), type='primary', use_container_width=True)
+    st.link_button('📲 Open WhatsApp with weekly breakdown', whatsapp_share_url(summary), type='primary', use_container_width=True)
 
     st.subheader('Settle up')
     if not transfers:
