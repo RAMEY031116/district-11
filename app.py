@@ -17,50 +17,136 @@ st.set_page_config(
     initial_sidebar_state='collapsed',
 )
 
-# ---------- Styling ----------
+# ---------- Dark portal styling ----------
 st.markdown(
-    '''
+    r'''
     <style>
     :root {
-      --ink:#15202b; --muted:#64748b; --line:#e8edf3; --panel:#ffffff;
-      --soft:#f5f7fb; --nav:#111827; --accent:#2563eb;
+      color-scheme: dark;
+      --bg:#090d14; --bg2:#0d131d; --panel:#111827; --panel2:#151f2e;
+      --ink:#f8fafc; --muted:#94a3b8; --line:#253246; --accent:#60a5fa;
+      --green:#34d399; --red:#fb7185; --amber:#fbbf24;
     }
-    html, body, [class*="css"] { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .stApp { background: var(--soft); color: var(--ink); }
-    .block-container { max-width: 1220px; padding-top: 1.1rem; padding-bottom: 5rem; }
-    [data-testid="stSidebar"] { background: var(--nav); }
-    [data-testid="stSidebar"] * { color:#f8fafc !important; }
-    [data-testid="stMetric"] { background:#fff; border:1px solid var(--line); padding:15px 17px; border-radius:18px; box-shadow:0 6px 22px rgba(15,23,42,.04); }
+
+    html, body, [class*="css"] {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .stApp {
+      background: radial-gradient(circle at top left, #111a29 0, var(--bg) 34rem);
+      color:var(--ink);
+    }
+    .block-container { max-width:1220px; padding-top:1rem; padding-bottom:5rem; }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] { background:#080c12; border-right:1px solid #1f2a3a; }
+    [data-testid="stSidebar"] * { color:var(--ink); }
+
+    /* General text */
+    h1,h2,h3,h4,h5,h6,p,label,span,div { color:inherit; }
+    .stCaption, [data-testid="stCaptionContainer"] { color:var(--muted) !important; }
+
+    /* Inputs: force readable white text on dark controls */
+    [data-baseweb="input"] > div,
+    [data-baseweb="textarea"] > div,
+    [data-baseweb="select"] > div,
+    [data-baseweb="base-input"],
+    [data-testid="stDateInput"] > div > div,
+    [data-testid="stNumberInput"] > div > div {
+      background:#0c1420 !important;
+      border-color:#334155 !important;
+      color:var(--ink) !important;
+    }
+    input, textarea, [contenteditable="true"] {
+      color:#f8fafc !important;
+      -webkit-text-fill-color:#f8fafc !important;
+      caret-color:#f8fafc !important;
+      background:transparent !important;
+    }
+    input::placeholder, textarea::placeholder {
+      color:#64748b !important;
+      -webkit-text-fill-color:#64748b !important;
+      opacity:1 !important;
+    }
+    [data-baseweb="select"] span,
+    [data-baseweb="select"] div,
+    [role="option"],
+    [role="listbox"] * {
+      color:#f8fafc !important;
+    }
+    [role="listbox"] { background:#111827 !important; }
+
+    /* Forms, expanders, metrics, alerts */
+    [data-testid="stForm"],
+    [data-testid="stExpander"] details,
+    [data-testid="stMetric"],
+    [data-testid="stDataFrame"],
+    [data-testid="stTable"] {
+      background:rgba(17,24,39,.94) !important;
+      border:1px solid var(--line) !important;
+      border-radius:18px !important;
+      box-shadow:0 12px 36px rgba(0,0,0,.2);
+    }
+    [data-testid="stMetric"] { padding:15px 17px; }
     [data-testid="stMetric"] * { color:var(--ink) !important; }
-    [data-baseweb="input"] > div, [data-baseweb="textarea"] > div, [data-baseweb="select"] > div, [data-baseweb="base-input"] { background:#fff !important; color:var(--ink) !important; }
-    input, textarea { color:var(--ink) !important; -webkit-text-fill-color:var(--ink) !important; }
-    input::placeholder, textarea::placeholder { color:#94a3b8 !important; -webkit-text-fill-color:#94a3b8 !important; }
-    [data-baseweb="select"] span { color:var(--ink) !important; }
-    [data-testid="stForm"], [data-testid="stExpander"] details { background:white; border-color:var(--line) !important; border-radius:18px !important; }
-    .hero { padding:26px 28px; border-radius:24px; background:linear-gradient(135deg,#111827,#1e293b 58%,#334155); box-shadow:0 16px 42px rgba(15,23,42,.16); margin-bottom:18px; }
+    [data-testid="stMetricDelta"] * { color:var(--muted) !important; }
+
+    /* Buttons */
+    .stButton > button, .stLinkButton > a, [data-testid="stDownloadButton"] button {
+      border-radius:12px !important;
+      min-height:43px;
+      font-weight:750 !important;
+      border:1px solid #334155 !important;
+      background:#162235 !important;
+      color:#f8fafc !important;
+    }
+    .stButton > button:hover, .stLinkButton > a:hover, [data-testid="stDownloadButton"] button:hover {
+      border-color:#60a5fa !important;
+      background:#1d2c43 !important;
+      color:white !important;
+    }
+    button[kind="primary"] {
+      background:#2563eb !important;
+      border-color:#3b82f6 !important;
+      color:white !important;
+    }
+
+    /* Tabs / radio */
+    [data-testid="stRadio"] label, [data-testid="stCheckbox"] label { color:var(--ink) !important; }
+
+    /* Portal surfaces */
+    .hero {
+      padding:26px 28px; border-radius:24px;
+      background:linear-gradient(135deg,#111827,#16243a 58%,#1d3555);
+      border:1px solid #263a59; box-shadow:0 18px 52px rgba(0,0,0,.28); margin-bottom:18px;
+    }
     .hero * { color:#fff !important; }
-    .hero-kicker { font-size:.78rem; opacity:.72; text-transform:uppercase; letter-spacing:.13em; font-weight:800; }
+    .hero-kicker { font-size:.78rem; opacity:.7; text-transform:uppercase; letter-spacing:.13em; font-weight:800; }
     .hero-title { font-size:2.15rem; line-height:1.06; font-weight:850; margin:.35rem 0 .55rem; }
-    .hero-sub { font-size:.98rem; opacity:.85; max-width:820px; }
-    .card { background:#fff; border:1px solid var(--line); border-radius:18px; padding:17px; margin-bottom:10px; box-shadow:0 4px 16px rgba(15,23,42,.035); }
+    .hero-sub { font-size:.98rem; opacity:.82; max-width:820px; }
+    .card {
+      background:linear-gradient(180deg,#111827,#0f1724); border:1px solid var(--line);
+      border-radius:18px; padding:17px; margin-bottom:10px; box-shadow:0 10px 30px rgba(0,0,0,.16);
+    }
     .card-title { color:var(--ink); font-weight:800; font-size:1rem; }
     .card-sub { color:var(--muted); font-size:.84rem; margin-top:3px; }
-    .pill { display:inline-block; border-radius:999px; padding:.25rem .6rem; background:#eef2ff; color:#3730a3; font-size:.75rem; font-weight:750; }
-    .receive { color:#047857 !important; font-weight:850; }
-    .owe { color:#b91c1c !important; font-weight:850; }
-    .settled { color:#047857 !important; font-weight:850; }
-    .stButton > button, .stLinkButton > a { border-radius:12px !important; font-weight:750 !important; min-height:42px; }
+    .pill { display:inline-block; border-radius:999px; padding:.25rem .6rem; background:#172554; color:#bfdbfe; font-size:.75rem; font-weight:750; }
+    .receive { color:var(--green) !important; font-weight:850; }
+    .owe { color:var(--red) !important; font-weight:850; }
+    .settled { color:var(--green) !important; font-weight:850; }
+
+    /* Data editor/table internals */
+    [data-testid="stDataFrame"] * { color:#e5e7eb; }
+
     @media (max-width: 768px) {
-      .block-container { padding:.75rem .8rem 5rem; }
+      .block-container { padding:.7rem .72rem 5rem; }
       .hero { padding:20px 18px; border-radius:18px; }
       .hero-title { font-size:1.55rem; }
       .hero-sub { font-size:.9rem; }
       [data-testid="column"] { width:100% !important; flex:1 1 100% !important; min-width:100% !important; }
       [data-testid="stHorizontalBlock"] { gap:.65rem !important; flex-wrap:wrap !important; }
-      .stButton > button, .stLinkButton > a { width:100%; min-height:46px; }
-      h1 { font-size:1.7rem !important; }
-      h2 { font-size:1.35rem !important; }
-      h3 { font-size:1.08rem !important; }
+      .stButton > button, .stLinkButton > a, [data-testid="stDownloadButton"] button { width:100%; min-height:47px; }
+      h1 { font-size:1.7rem !important; } h2 { font-size:1.35rem !important; } h3 { font-size:1.08rem !important; }
     }
     </style>
     ''',
@@ -68,38 +154,17 @@ st.markdown(
 )
 
 
-# ---------- Access gate ----------
-def check_pin():
-    pin = st.secrets.get('HOUSEHOLD_PIN', '')
-    if not pin:
-        return True
-    if st.session_state.get('district11_unlocked'):
-        return True
-
-    st.markdown(
-        '''<div class="hero"><div class="hero-kicker">Private household portal</div>
-        <div class="hero-title">District 11</div><div class="hero-sub">Enter the shared house PIN to continue.</div></div>''',
-        unsafe_allow_html=True,
-    )
-    entered = st.text_input('Household PIN', type='password', placeholder='Enter PIN')
-    if st.button('Unlock', type='primary', use_container_width=True):
-        if entered == str(pin):
-            st.session_state['district11_unlocked'] = True
-            st.rerun()
-        else:
-            st.error('That PIN is not correct.')
-    st.stop()
-
-
-check_pin()
-
 try:
     household = db.get_or_create_household('District 11')
     members = db.list_members(household['id'])
 except Exception as exc:
-    st.error('District 11 cannot connect to Supabase yet.')
-    st.code(str(exc))
-    st.info('Add SUPABASE_URL and SUPABASE_KEY to Streamlit Secrets, then rerun the app.')
+    message = str(exc)
+    st.error('District 11 cannot connect to Supabase.')
+    st.code(message)
+    if 'permission denied' in message.lower() or "42501" in message:
+        st.warning('Your Supabase URL/key are being reached, but the database role does not have permission to read the tables. Run the GRANT SQL shown in the setup instructions, then reboot the Streamlit app.')
+    else:
+        st.info('Check SUPABASE_URL and SUPABASE_KEY in Streamlit Secrets, then reboot the app.')
     st.stop()
 
 member_by_id = {m['id']: m for m in members}
@@ -231,9 +296,6 @@ with st.sidebar:
     st.divider()
     st.caption('Members')
     st.write(' · '.join(m['name'] for m in members))
-    if st.secrets.get('HOUSEHOLD_PIN') and st.button('Lock portal'):
-        st.session_state['district11_unlocked'] = False
-        st.rerun()
 
 
 # ---------- Shared week selector ----------
