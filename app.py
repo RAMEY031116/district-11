@@ -4,8 +4,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from urllib.parse import quote
 
-import altair as alt
-import pandas as pd
+from html import escape
 import streamlit as st
 
 import db
@@ -322,27 +321,52 @@ def member_week_stats(expenses, splits_by_expense, balances):
     return rows
 
 
-def balance_chart(stats):
-    """Dark-mode chart. Positive means receives; negative means owes."""
-    data = pd.DataFrame([
-        {'Person': row['name'], 'Balance': row['balance'] / 100}
-        for row in stats
-    ])
-    if data.empty:
-        return None
-    base = alt.Chart(data).encode(
-        x=alt.X('Person:N', title=None, axis=alt.Axis(labelAngle=0, labelColor='#cbd5e1', tickColor='#334155', domainColor='#334155')),
-        y=alt.Y('Balance:Q', title='Balance (£)', axis=alt.Axis(labelColor='#cbd5e1', titleColor='#94a3b8', gridColor='#1f2937', tickColor='#334155', domainColor='#334155')),
-        tooltip=[alt.Tooltip('Person:N'), alt.Tooltip('Balance:Q', title='Balance (£)', format='.2f')],
+
+def render_balance_visual(stats):
+    """Render a dependency-free balance visual that works reliably on Streamlit Cloud."""
+    if not stats:
+        st.caption('No balance data yet.')
+        return
+
+    maximum = max([abs(int(row['balance'])) for row in stats] + [1])
+    rows = []
+    for row in stats:
+        balance = int(row['balance'])
+        width = max(2, round(abs(balance) / maximum * 48)) if balance else 0
+        name = escape(str(row['name']))
+        amount = escape(money(abs(balance)))
+
+        if balance > 0:
+            left_bar = ''
+            right_bar = f'<div style="width:{width}%;height:16px;border-radius:0 9px 9px 0;background:#34d399;"></div>'
+            status = f'<span style="color:#34d399;font-weight:800">+{amount} receives</span>'
+        elif balance < 0:
+            left_bar = f'<div style="width:{width}%;height:16px;border-radius:9px 0 0 9px;background:#fb7185;margin-left:auto;"></div>'
+            right_bar = ''
+            status = f'<span style="color:#fb7185;font-weight:800">-{amount} owes</span>'
+        else:
+            left_bar = ''
+            right_bar = ''
+            status = '<span style="color:#34d399;font-weight:800">£0.00 settled</span>'
+
+        rows.append(
+            '<div style="margin:14px 0 18px">'
+            '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:7px">'
+            f'<strong style="color:#f8fafc">{name}</strong>{status}'
+            '</div>'
+            '<div style="display:grid;grid-template-columns:1fr 1px 1fr;align-items:center;min-height:16px">'
+            f'<div>{left_bar}</div>'
+            '<div style="width:1px;height:25px;background:#64748b"></div>'
+            f'<div>{right_bar}</div>'
+            '</div></div>'
+        )
+
+    st.markdown(
+        "<div class='card'><div class='card-sub' style='margin-bottom:.4rem'>Owes ← <span style='padding:0 .5rem'>£0</span> → Receives</div>"
+        + ''.join(rows)
+        + "</div>",
+        unsafe_allow_html=True,
     )
-    bars = base.mark_bar(cornerRadiusTopLeft=7, cornerRadiusTopRight=7, size=58).encode(
-        color=alt.condition('datum.Balance >= 0', alt.value('#34d399'), alt.value('#fb7185'))
-    )
-    labels = base.mark_text(dy=-10, fontSize=13, fontWeight='bold', color='#f8fafc').encode(
-        text=alt.Text('Balance:Q', format='.2f')
-    )
-    zero = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='#64748b', strokeDash=[4, 4]).encode(y='y:Q')
-    return (bars + labels + zero).properties(height=260).configure_view(strokeWidth=0).configure(background='transparent')
 
 
 # ---------- Always-visible navigation ----------
@@ -473,9 +497,7 @@ if page == 'Home':
                     f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
                     unsafe_allow_html=True,
                 )
-        chart = balance_chart(stats)
-        if chart is not None:
-            st.altair_chart(chart, use_container_width=True)
+        render_balance_visual(stats)
         st.caption('Positive balance = should receive money. Negative balance = owes money. District 11 keeps every penny exact, so the household total always matches the real spend.')
     else:
         st.info('No expenses have been added for this week yet.')
@@ -651,9 +673,7 @@ elif page == 'Balance':
 
     stats = member_week_stats(expenses, splits_by_expense, balances)
     st.subheader('Live balance')
-    chart = balance_chart(stats)
-    if chart is not None:
-        st.altair_chart(chart, use_container_width=True)
+    render_balance_visual(stats)
 
     cols = st.columns(max(1, min(3, len(stats))))
     for idx, row in enumerate(stats):

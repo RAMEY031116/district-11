@@ -71,3 +71,7 @@ The WhatsApp buttons open WhatsApp with the latest message already prepared. On 
 - Added a dark-mode Altair balance chart with positive/negative balances.
 - Strengthened Streamlit input styling so typed text, placeholders, dates, times and number fields remain readable in dark mode.
 - Money remains exact to the penny; no floating-point decimal artefacts are shown.
+
+
+## Streamlit Cloud compatibility
+This release removes Altair and pandas from the balance visual so it works cleanly on newer Streamlit Cloud Python runtimes.
