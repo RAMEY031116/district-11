@@ -4,6 +4,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from urllib.parse import quote
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -46,25 +47,49 @@ st.markdown(
     h1,h2,h3,h4,h5,h6,p,label,span,div { color:inherit; }
     .stCaption, [data-testid="stCaptionContainer"] { color:var(--muted) !important; }
 
-    /* Inputs — keep Streamlit controls interactive; only set readable colours. */
-    input, textarea {
+    /* Inputs — force a consistent dark field surface and readable typing. */
+    [data-testid="stTextInput"] input,
+    [data-testid="stNumberInput"] input,
+    [data-testid="stTextArea"] textarea,
+    [data-testid="stDateInput"] input,
+    [data-testid="stTimeInput"] input,
+    div[data-baseweb="input"] input,
+    div[data-baseweb="textarea"] textarea {
+      background:#0b1220 !important;
       color:#f8fafc !important;
       -webkit-text-fill-color:#f8fafc !important;
       caret-color:#f8fafc !important;
-    }
-    input::placeholder, textarea::placeholder {
-      color:#7c8da5 !important;
-      -webkit-text-fill-color:#7c8da5 !important;
-      opacity:1 !important;
-    }
-    [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div {
-      background-color:#0f1724 !important;
       border-color:#334155 !important;
     }
-    [data-baseweb="select"] *, [role="option"], [role="listbox"] * {
+    [data-testid="stTextInput"] input::placeholder,
+    [data-testid="stNumberInput"] input::placeholder,
+    [data-testid="stTextArea"] textarea::placeholder,
+    [data-testid="stDateInput"] input::placeholder,
+    [data-testid="stTimeInput"] input::placeholder,
+    input::placeholder, textarea::placeholder {
+      color:#8191a8 !important;
+      -webkit-text-fill-color:#8191a8 !important;
+      opacity:1 !important;
+    }
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="textarea"],
+    div[data-baseweb="select"] > div,
+    [data-testid="stTextInput"] > div > div,
+    [data-testid="stNumberInput"] > div > div,
+    [data-testid="stDateInput"] > div > div,
+    [data-testid="stTimeInput"] > div > div {
+      background:#0b1220 !important;
+      border-color:#334155 !important;
       color:#f8fafc !important;
     }
+    [data-baseweb="select"] *, [role="option"], [role="listbox"] * { color:#f8fafc !important; }
     [role="listbox"] { background:#111827 !important; }
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus {
+      -webkit-box-shadow:0 0 0 1000px #0b1220 inset !important;
+      -webkit-text-fill-color:#f8fafc !important;
+    }
 
     /* Forms, expanders, metrics, alerts */
     [data-testid="stForm"],
@@ -275,6 +300,51 @@ def make_ics(events: list[dict]) -> str:
     return '\r\n'.join(chunks)
 
 
+def member_week_stats(expenses, splits_by_expense, balances):
+    """Return exact paid/fair-share/balance figures in pence for each member."""
+    rows = []
+    for member in members:
+        member_id = member['id']
+        paid = sum(int(e['amount_pence']) for e in expenses if e['paid_by_member_id'] == member_id)
+        fair_share = sum(
+            int(split['share_pence'])
+            for expense in expenses
+            for split in splits_by_expense.get(expense['id'], [])
+            if split['member_id'] == member_id
+        )
+        rows.append({
+            'id': member_id,
+            'name': member['name'],
+            'paid': paid,
+            'fair_share': fair_share,
+            'balance': int(balances.get(member_id, 0)),
+        })
+    return rows
+
+
+def balance_chart(stats):
+    """Dark-mode chart. Positive means receives; negative means owes."""
+    data = pd.DataFrame([
+        {'Person': row['name'], 'Balance': row['balance'] / 100}
+        for row in stats
+    ])
+    if data.empty:
+        return None
+    base = alt.Chart(data).encode(
+        x=alt.X('Person:N', title=None, axis=alt.Axis(labelAngle=0, labelColor='#cbd5e1', tickColor='#334155', domainColor='#334155')),
+        y=alt.Y('Balance:Q', title='Balance (£)', axis=alt.Axis(labelColor='#cbd5e1', titleColor='#94a3b8', gridColor='#1f2937', tickColor='#334155', domainColor='#334155')),
+        tooltip=[alt.Tooltip('Person:N'), alt.Tooltip('Balance:Q', title='Balance (£)', format='.2f')],
+    )
+    bars = base.mark_bar(cornerRadiusTopLeft=7, cornerRadiusTopRight=7, size=58).encode(
+        color=alt.condition('datum.Balance >= 0', alt.value('#34d399'), alt.value('#fb7185'))
+    )
+    labels = base.mark_text(dy=-10, fontSize=13, fontWeight='bold', color='#f8fafc').encode(
+        text=alt.Text('Balance:Q', format='.2f')
+    )
+    zero = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(color='#64748b', strokeDash=[4, 4]).encode(y='y:Q')
+    return (bars + labels + zero).properties(height=260).configure_view(strokeWidth=0).configure(background='transparent')
+
+
 # ---------- Always-visible navigation ----------
 st.markdown("<div style='margin-bottom:.35rem'><span class='pill'>District 11</span></div>", unsafe_allow_html=True)
 page = st.radio(
@@ -384,12 +454,29 @@ if page == 'Home':
 
     st.subheader('This week at a glance')
     if expenses:
-        chart_rows = []
-        for member in members:
-            paid = sum(int(e['amount_pence']) for e in expenses if e['paid_by_member_id'] == member['id'])
-            chart_rows.append({'Person': member['name'], 'Paid (£)': paid / 100})
-        chart_df = pd.DataFrame(chart_rows).set_index('Person')
-        st.bar_chart(chart_df, use_container_width=True)
+        stats = member_week_stats(expenses, splits_by_expense, balances)
+        glance_cols = st.columns(max(1, min(3, len(stats))))
+        for idx, row in enumerate(stats):
+            with glance_cols[idx % len(glance_cols)]:
+                if row['balance'] > 0:
+                    status = f"Receives {money(row['balance'])}"
+                    status_class = 'receive'
+                elif row['balance'] < 0:
+                    status = f"Owes {money(abs(row['balance']))}"
+                    status_class = 'owe'
+                else:
+                    status = 'Settled'
+                    status_class = 'settled'
+                st.markdown(
+                    f"<div class='card'><div class='card-title'>{row['name']}</div>"
+                    f"<div class='card-sub'>Paid <strong>{money(row['paid'])}</strong> · Fair share <strong>{money(row['fair_share'])}</strong></div>"
+                    f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
+                    unsafe_allow_html=True,
+                )
+        chart = balance_chart(stats)
+        if chart is not None:
+            st.altair_chart(chart, use_container_width=True)
+        st.caption('Positive balance = should receive money. Negative balance = owes money. District 11 keeps every penny exact, so the household total always matches the real spend.')
     else:
         st.info('No expenses have been added for this week yet.')
 
@@ -562,23 +649,32 @@ elif page == 'Balance':
     c2.metric('Paid settlements', money(sum(int(s['amount_pence']) for s in settlements)))
     c3.metric('Transfers remaining', str(len(transfers)))
 
-    chart_rows = []
-    for member in members:
-        chart_rows.append({'Person': member['name'], 'Balance (£)': balances.get(member['id'], 0) / 100})
-    chart_df = pd.DataFrame(chart_rows).set_index('Person')
+    stats = member_week_stats(expenses, splits_by_expense, balances)
     st.subheader('Live balance')
-    st.bar_chart(chart_df, use_container_width=True)
+    chart = balance_chart(stats)
+    if chart is not None:
+        st.altair_chart(chart, use_container_width=True)
 
-    cols = st.columns(max(1, min(3, len(members))))
-    for idx, member in enumerate(members):
-        balance = balances.get(member['id'], 0)
+    cols = st.columns(max(1, min(3, len(stats))))
+    for idx, row in enumerate(stats):
         with cols[idx % len(cols)]:
-            if balance > 0:
-                st.metric(member['name'], money(balance), 'should receive')
-            elif balance < 0:
-                st.metric(member['name'], money(balance), 'owes')
+            if row['balance'] > 0:
+                status = f"Receives {money(row['balance'])}"
+                status_class = 'receive'
+            elif row['balance'] < 0:
+                status = f"Owes {money(abs(row['balance']))}"
+                status_class = 'owe'
             else:
-                st.metric(member['name'], '£0.00', 'settled')
+                status = 'Settled'
+                status_class = 'settled'
+            st.markdown(
+                f"<div class='card'><div class='card-title'>{row['name']}</div>"
+                f"<div class='card-sub'>Paid <strong>{money(row['paid'])}</strong></div>"
+                f"<div class='card-sub'>Fair share <strong>{money(row['fair_share'])}</strong></div>"
+                f"<div class='{status_class}' style='margin-top:.6rem'>{status}</div></div>",
+                unsafe_allow_html=True,
+            )
+    st.caption('If a total cannot divide perfectly into pennies, only the unavoidable 1p remainder is allocated. Amounts always stay as proper money such as £6.67 — never long decimals.')
 
     summary = weekly_summary(selected_start, selected_end, expenses, splits_by_expense, settlements, transfers, shopping)
     st.link_button('📲 Open WhatsApp with weekly breakdown', whatsapp_share_url(summary), type='primary', use_container_width=True)

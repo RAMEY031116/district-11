@@ -64,3 +64,10 @@ python3 -m streamlit run app.py
 ## WhatsApp behavior
 
 The WhatsApp buttons open WhatsApp with the latest message already prepared. On your phone, choose your existing household group and press Send. This does not require the paid WhatsApp Business API.
+
+## v8 UI fixes
+- Replaced the old paid-only weekly chart with a proper live balance view.
+- Each member now shows Paid, Fair share, and Owes/Receives.
+- Added a dark-mode Altair balance chart with positive/negative balances.
+- Strengthened Streamlit input styling so typed text, placeholders, dates, times and number fields remain readable in dark mode.
+- Money remains exact to the penny; no floating-point decimal artefacts are shown.
