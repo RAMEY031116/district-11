@@ -181,10 +181,23 @@ def delete_expense(expense_id: str):
 
 
 def list_settlements(household_id: str, week_start: date | None = None) -> list[dict]:
-    query = get_client().table('settlements').select('*').eq('household_id', household_id)
-    if week_start is not None:
-        query = query.eq('week_start', week_start.isoformat())
-    return _data(query.order('created_at', desc=True).execute())
+    query = (get_client().table('settlements')
+             .select('*')
+             .eq('household_id', household_id)
+             .eq('status', 'paid'))
+    rows = _data(query.order('paid_at', desc=True).execute())
+    if week_start is None:
+        return rows
+    week_end = week_start.fromordinal(week_start.toordinal() + 6)
+    filtered = []
+    for row in rows:
+        stamp = row.get('paid_at') or row.get('created_at')
+        if not stamp:
+            continue
+        paid_day = date.fromisoformat(str(stamp)[:10])
+        if week_start <= paid_day <= week_end:
+            filtered.append(row)
+    return filtered
 
 
 def mark_settlement_paid(
@@ -194,6 +207,9 @@ def mark_settlement_paid(
     amount_pence: int,
     week_start: date,
 ):
+    # The original District 11 schema does not require a week_start column.
+    # We group settlements into weeks by paid_at, so this works with the tables
+    # you already created in Supabase.
     payload = {
         'household_id': household_id,
         'from_member_id': from_member_id,
@@ -201,7 +217,6 @@ def mark_settlement_paid(
         'amount_pence': int(amount_pence),
         'status': 'paid',
         'paid_at': datetime.now().isoformat(),
-        'week_start': week_start.isoformat(),
     }
     return _data(get_client().table('settlements').insert(payload).execute())[0]
 

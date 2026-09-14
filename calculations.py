@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 
 def money(pence: int) -> str:
@@ -10,8 +11,9 @@ def money(pence: int) -> str:
 
 
 def to_pence(value) -> int:
-    """Convert a pounds value to exact integer pence."""
-    return int(round(float(value) * 100))
+    """Convert a pounds value to exact integer pence without float artefacts."""
+    amount = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    return int(amount * 100)
 
 
 def week_bounds(day: date | None = None):

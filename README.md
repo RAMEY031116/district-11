@@ -1,56 +1,39 @@
 # District 11
 
-Private shared household portal built with Streamlit and Supabase.
+A mobile-friendly shared household portal built with Streamlit + Supabase.
 
-## GitHub files
+## Features
+- Shopping list with mark-bought / undo / delete
+- Shared expenses and exact pence-based splitting
+- Automatic weekly balances and minimum settlement transfers
+- WhatsApp-ready shopping and weekly settlement messages
+- Mark settlement as paid + history
+- Reminders/calendar with optional times and `.ics` export
+- Recurring bills
+- Household members and WhatsApp numbers
+- Dark theme and mobile-friendly layout
 
-The deployed app only needs:
-
-- `app.py`
-- `calculations.py`
-- `db.py`
-- `requirements.txt`
-- `README.md`
-- `.gitignore` (recommended)
-
-Your live database stays in Supabase. Do not put credentials in GitHub.
-
-## Streamlit Secrets
-
-District 11 no longer uses a household PIN/unlock screen.
-
-Add only these secrets in Streamlit Community Cloud:
+## Streamlit Cloud secrets
+Add these in **App settings → Secrets**:
 
 ```toml
 SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
-SUPABASE_KEY = "sb_secret_YOUR_SECRET_KEY"
+SUPABASE_KEY = "sb_secret_..."
 ```
 
-## Fix: permission denied for table households (42501)
+No household PIN is required.
 
-If Streamlit reaches Supabase but shows `permission denied for table households`, open Supabase -> SQL Editor and run:
+## Supabase permissions
+If you see `permission denied for table households`, run this once in Supabase SQL Editor:
 
 ```sql
 grant usage on schema public to service_role;
-
-grant select, insert, update, delete
-on all tables in schema public
-to service_role;
-
-alter default privileges in schema public
-grant select, insert, update, delete
-on tables to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
 ```
 
-Then reboot the Streamlit app.
-
 ## Run locally
-
 ```bash
 python3 -m pip install -r requirements.txt
 python3 -m streamlit run app.py
 ```
-
-## Security
-
-`SUPABASE_KEY` is a server-side secret. Keep it only in Streamlit Secrets/local secret storage and never commit it to GitHub.

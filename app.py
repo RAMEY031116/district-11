@@ -46,32 +46,22 @@ st.markdown(
     h1,h2,h3,h4,h5,h6,p,label,span,div { color:inherit; }
     .stCaption, [data-testid="stCaptionContainer"] { color:var(--muted) !important; }
 
-    /* Inputs: force readable white text on dark controls */
-    [data-baseweb="input"] > div,
-    [data-baseweb="textarea"] > div,
-    [data-baseweb="select"] > div,
-    [data-baseweb="base-input"],
-    [data-testid="stDateInput"] > div > div,
-    [data-testid="stNumberInput"] > div > div {
-      background:#0c1420 !important;
-      border-color:#334155 !important;
-      color:var(--ink) !important;
-    }
-    input, textarea, [contenteditable="true"] {
+    /* Inputs — keep Streamlit controls interactive; only set readable colours. */
+    input, textarea {
       color:#f8fafc !important;
       -webkit-text-fill-color:#f8fafc !important;
       caret-color:#f8fafc !important;
-      background:transparent !important;
     }
     input::placeholder, textarea::placeholder {
-      color:#64748b !important;
-      -webkit-text-fill-color:#64748b !important;
+      color:#7c8da5 !important;
+      -webkit-text-fill-color:#7c8da5 !important;
       opacity:1 !important;
     }
-    [data-baseweb="select"] span,
-    [data-baseweb="select"] div,
-    [role="option"],
-    [role="listbox"] * {
+    [data-baseweb="input"], [data-baseweb="textarea"], [data-baseweb="select"] > div {
+      background-color:#0f1724 !important;
+      border-color:#334155 !important;
+    }
+    [data-baseweb="select"] *, [role="option"], [role="listbox"] * {
       color:#f8fafc !important;
     }
     [role="listbox"] { background:#111827 !important; }
@@ -290,7 +280,7 @@ with st.sidebar:
     st.caption('Shared home portal')
     page = st.radio(
         'Navigate',
-        ['Home', 'Shopping', 'Expenses', 'Balance', 'Calendar', 'Bills', 'Household'],
+        ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders', 'Bills', 'Household'],
         label_visibility='collapsed',
     )
     st.divider()
@@ -372,12 +362,13 @@ if page == 'Home':
 elif page == 'Shopping':
     st.title('🛒 Shopping')
     st.caption('Add something the moment you remember it. Anyone can mark it bought later.')
+    st.info('Type into the fields below, then press **Add to list**. Your data is saved to Supabase.')
     shopping = db.list_shopping(household['id'])
 
     with st.form('add_shopping', clear_on_submit=True):
         a, b, c = st.columns([2, 1, 1])
-        item_name = a.text_input('Item', placeholder='Milk, rice, washing liquid…')
-        quantity = b.text_input('Quantity', placeholder='2 packs')
+        item_name = a.text_input('Item', placeholder='Milk, rice, washing liquid…', key='shopping_item_name')
+        quantity = b.text_input('Quantity', placeholder='2 packs', key='shopping_quantity')
         added_by_name = c.selectbox('Added by', [m['name'] for m in members])
         submitted = st.form_submit_button('Add to list', type='primary', use_container_width=True)
         if submitted:
@@ -425,11 +416,12 @@ elif page == 'Shopping':
 elif page == 'Expenses':
     st.title('💳 Expenses')
     st.caption('Record who paid and who benefited. District 11 works out the balance automatically.')
+    st.info('Enter the purchase, amount, payer and who shared it. Press **Add expense** to save it.')
 
     with st.form('add_expense', clear_on_submit=True):
         a, b = st.columns(2)
-        description = a.text_input('What was it?', placeholder='Tesco groceries')
-        amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f')
+        description = a.text_input('What was it?', placeholder='Tesco groceries', key='expense_description')
+        amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='expense_amount')
         c, d = st.columns(2)
         payer_name = c.selectbox('Who paid?', [m['name'] for m in members])
         expense_day = d.date_input('Date', value=date.today())
@@ -557,18 +549,19 @@ elif page == 'Balance':
 
 
 # ---------- CALENDAR ----------
-elif page == 'Calendar':
-    st.title('📅 Calendar & reminders')
-    st.caption('Keep house appointments, chores and reminders together.')
+elif page == 'Reminders':
+    st.title('🔔 Reminders & calendar')
+    st.caption('Add reminders, chores and house events here. They appear on the Home dashboard too.')
+    st.info('Fill in the reminder below and press **Add to calendar**. Time is optional.')
 
     with st.form('add_event', clear_on_submit=True):
         a, b = st.columns(2)
-        title = a.text_input('Reminder / event', placeholder='Bin day, inspection, dinner…')
+        title = a.text_input('Reminder / event', placeholder='Bin day, inspection, dinner…', key='reminder_title')
         event_date = b.date_input('Date', value=date.today())
         c, d = st.columns(2)
         has_time = c.checkbox('Add a time')
         event_time = d.time_input('Time', value=time(18, 0), disabled=not has_time)
-        description = st.text_area('Notes', placeholder='Optional details')
+        description = st.text_area('Notes', placeholder='Optional details', key='reminder_notes')
         submitted = st.form_submit_button('Add to calendar', type='primary', use_container_width=True)
         if submitted:
             if not title.strip():
@@ -612,8 +605,8 @@ elif page == 'Bills':
 
     with st.form('add_bill', clear_on_submit=True):
         a, b, c = st.columns(3)
-        bill_name = a.text_input('Bill', placeholder='WiFi, rent, council tax…')
-        bill_amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f')
+        bill_name = a.text_input('Bill', placeholder='WiFi, rent, council tax…', key='bill_name')
+        bill_amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='expense_amount')
         due_day = c.number_input('Due day', min_value=1, max_value=31, value=1, step=1)
         payer = st.selectbox('Usually paid by', ['Not fixed'] + [m['name'] for m in members])
         submitted = st.form_submit_button('Add regular bill', type='primary', use_container_width=True)
