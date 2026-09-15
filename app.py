@@ -152,6 +152,15 @@ st.markdown(
     /* Data editor/table internals */
     [data-testid="stDataFrame"] * { color:#e5e7eb; }
 
+    /* Clean pill navigation: no radio circles. */
+    [data-testid="stSegmentedControl"] { margin:.15rem 0 .25rem; }
+    [data-testid="stSegmentedControl"] button {
+      border-radius:999px !important;
+      min-height:40px !important;
+      padding:.45rem .9rem !important;
+      font-weight:750 !important;
+    }
+
     @media (max-width: 768px) {
       .block-container { padding:.7rem .72rem 5rem; }
       .hero { padding:20px 18px; border-radius:18px; }
@@ -369,16 +378,32 @@ def render_balance_visual(stats):
     )
 
 
-# ---------- Always-visible navigation ----------
-st.markdown("<div style='margin-bottom:.35rem'><span class='pill'>District 11</span></div>", unsafe_allow_html=True)
-page = st.radio(
-    'Navigate',
-    ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders', 'Bills', 'Household'],
-    horizontal=True,
-    label_visibility='collapsed',
-    key='top_navigation',
+# ---------- Simple navigation ----------
+st.markdown(
+    "<div style='display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 .65rem'>"
+    "<span class='pill'>District 11 · Simple</span>"
+    "<span style='color:#64748b;font-size:.82rem'>Bipesh · Sabin · Yush</span>"
+    "</div>",
+    unsafe_allow_html=True,
 )
-st.caption('Household: ' + ' · '.join(m['name'] for m in members))
+
+NAV_OPTIONS = ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders']
+if hasattr(st, 'segmented_control'):
+    page = st.segmented_control(
+        'Section',
+        NAV_OPTIONS,
+        default='Home',
+        selection_mode='single',
+        label_visibility='collapsed',
+        key='top_navigation',
+    ) or 'Home'
+else:
+    page = st.selectbox(
+        'Section',
+        NAV_OPTIONS,
+        label_visibility='collapsed',
+        key='top_navigation_fallback',
+    )
 st.divider()
 
 
@@ -391,12 +416,11 @@ if page == 'Home':
     shopping = db.list_shopping(household['id'])
     week_end, expenses, splits_by_expense, settlements, balances, transfers = current_week_data(current_start)
     upcoming_events = db.list_events(household['id'], date.today(), date.today() + timedelta(days=14))
-    bills = db.list_bills(household['id'])
 
     st.markdown(
         '''<div class="hero"><div class="hero-kicker">Household operating system</div>
         <div class="hero-title">District 11</div>
-        <div class="hero-sub">Shopping, spending, balances, bills and reminders in one shared place.</div></div>''',
+        <div class="hero-sub">Shopping, shared expenses, balances and reminders in one simple place.</div></div>''',
         unsafe_allow_html=True,
     )
 
@@ -539,13 +563,6 @@ if page == 'Home':
                 )
         else:
             st.caption('No reminders in the next 14 days.')
-
-    if bills:
-        st.subheader('Regular bills')
-        cols = st.columns(min(3, len(bills)))
-        for idx, bill in enumerate(bills[:6]):
-            with cols[idx % len(cols)]:
-                st.metric(bill['name'], money(bill['amount_pence']), f"Due day {bill['due_day']}")
 
 
 # ---------- SHOPPING ----------
@@ -793,105 +810,3 @@ elif page == 'Reminders':
             if c2.button('Delete', key=f"del_event_{event['id']}", use_container_width=True):
                 db.delete_event(event['id'])
                 st.rerun()
-
-
-# ---------- BILLS ----------
-elif page == 'Bills':
-    st.title('🧾 Regular bills')
-    st.caption('Keep the recurring house costs visible and add them to expenses when they are paid.')
-
-    with st.form('add_bill', clear_on_submit=True):
-        a, b, c = st.columns(3)
-        bill_name = a.text_input('Bill', placeholder='WiFi, rent, council tax…', key='bill_name')
-        bill_amount = b.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='bill_amount')
-        due_day = c.number_input('Due day', min_value=1, max_value=31, value=1, step=1)
-        payer = st.selectbox('Usually paid by', ['Not fixed'] + [m['name'] for m in members])
-        submitted = st.form_submit_button('Add regular bill', type='primary', use_container_width=True)
-        if submitted:
-            if not bill_name.strip():
-                st.error('Enter a bill name.')
-            else:
-                db.add_bill(
-                    household['id'], bill_name, to_pence(bill_amount), int(due_day),
-                    member_id_by_name.get(payer) if payer != 'Not fixed' else None,
-                )
-                st.rerun()
-
-    bills = db.list_bills(household['id'])
-    if not bills:
-        st.info('No regular bills added yet.')
-    for bill in bills:
-        with st.container(border=True):
-            a, b, c = st.columns([3, 1.2, 1.5])
-            a.markdown(f"**{bill['name']}**")
-            a.caption(f"Due on day {bill['due_day']} · usually paid by {member_name.get(bill.get('paid_by_member_id'), 'not fixed')}")
-            b.markdown(f"### {money(bill['amount_pence'])}")
-            if c.button('Delete', key=f"del_bill_{bill['id']}", use_container_width=True):
-                db.delete_bill(bill['id'])
-                st.rerun()
-
-    if bills:
-        st.subheader('Record a bill as paid')
-        selected_bill_name = st.selectbox('Bill', [b['name'] for b in bills], key='paid_bill_name')
-        selected_bill = next(b for b in bills if b['name'] == selected_bill_name)
-        payer_default = member_name.get(selected_bill.get('paid_by_member_id'), members[0]['name'])
-        payer_name = st.selectbox('Paid by', [m['name'] for m in members], index=[m['name'] for m in members].index(payer_default) if payer_default in [m['name'] for m in members] else 0, key='paid_bill_payer')
-        split_names = st.multiselect('Split between', [m['name'] for m in members], default=[m['name'] for m in members], key='paid_bill_split')
-        paid_date = st.date_input('Paid date', value=date.today(), key='paid_bill_date')
-        if st.button('Add this bill to expenses', type='primary', use_container_width=True):
-            split_ids = [member_id_by_name[n] for n in split_names]
-            if not split_ids:
-                st.error('Choose at least one person to split the bill with.')
-            else:
-                db.add_expense(
-                    household['id'],
-                    member_id_by_name[payer_name],
-                    selected_bill['name'],
-                    int(selected_bill['amount_pence']),
-                    paid_date,
-                    equal_split(int(selected_bill['amount_pence']), split_ids),
-                )
-                st.success('Bill added to expenses.')
-                st.rerun()
-
-
-# ---------- HOUSEHOLD ----------
-elif page == 'Household':
-    st.title('🏡 Household')
-    st.caption('Manage who is in District 11 and save WhatsApp numbers for one-tap payment messages.')
-
-    for member in members:
-        with st.container(border=True):
-            c1, c2 = st.columns([1.2, 2])
-            c1.markdown(f"### {member['name']}")
-            phone = c2.text_input(
-                'WhatsApp number',
-                value=member.get('phone_number') or '',
-                placeholder='+447123456789',
-                key=f"phone_{member['id']}",
-                help='Use international format. Example: +447123456789',
-            )
-            if c2.button('Save number', key=f"save_phone_{member['id']}", use_container_width=True):
-                db.update_member(member['id'], phone_number=phone.strip() or None)
-                st.success(f"Saved {member['name']}'s number.")
-                st.rerun()
-
-    with st.expander('Add another person'):
-        with st.form('add_member', clear_on_submit=True):
-            name = st.text_input('Name')
-            phone = st.text_input('WhatsApp number', placeholder='+44…')
-            submitted = st.form_submit_button('Add person', type='primary', use_container_width=True)
-            if submitted:
-                if not name.strip():
-                    st.error('Enter a name.')
-                elif name.strip().lower() in {m['name'].lower() for m in members}:
-                    st.error('That person already exists.')
-                else:
-                    db.add_member(household['id'], name, phone)
-                    st.rerun()
-
-    st.divider()
-    st.subheader('Deployment status')
-    st.success('District 11 is using Supabase for shared data.')
-    st.caption('GitHub stores the code. Streamlit runs the site. Supabase stores the household data.')
-    st.warning('Automatic scheduled WhatsApp group posting is not included. WhatsApp share buttons open a ready-written message so you can choose your existing group and send it.')
