@@ -10,7 +10,7 @@ A simple shared household portal built with Streamlit + Supabase.
 - Open WhatsApp with the current **unbought** shopping list ready to share
 - Shared expenses
 - Choose who paid and who shared each expense
-- Exact penny-safe splitting
+- Simple equal-looking rounded splitting (e.g. £20 / 3 = £6.67 each)
 - Weekly balance and minimum settle-up transfers
 - Open WhatsApp with the current outstanding weekly balance ready to share
 - Mark settlements paid and keep payment history
@@ -43,3 +43,10 @@ Keep the secret key in Streamlit Secrets only. Do not commit it to GitHub.
 python3 -m pip install -r requirements.txt
 python3 -m streamlit run app.py
 ```
+
+
+## Equal split rule
+District 11 deliberately uses the same rounded share for every selected person. For example, £20.00 split between three people is shown as £6.67 each. A tiny rounding adjustment (1p in this example) is absorbed into the settlement basis so one person is not shown a different share.
+
+## WhatsApp sharing
+The Shopping and Balance pages use green WhatsApp-style share buttons. Shopping shares only items still marked as not bought. Balance shares the current outstanding settlement.

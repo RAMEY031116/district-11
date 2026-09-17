@@ -23,15 +23,21 @@ def week_bounds(day: date | None = None):
 
 
 def equal_split(amount_pence: int, member_ids: list[str]) -> dict[str, int]:
-    """Split exactly, allocating any remainder pennies deterministically."""
+    """Return the same rounded penny share for every selected person.
+
+    District 11 intentionally favours a simple household split over forcing one
+    person to be 1p different. Example: £20.00 / 3 => £6.67 each. The tiny
+    rounding difference is absorbed into the settlement basis.
+    """
     if not member_ids:
         return {}
     amount_pence = int(amount_pence)
-    base, remainder = divmod(amount_pence, len(member_ids))
-    return {
-        member_id: base + (1 if idx < remainder else 0)
-        for idx, member_id in enumerate(member_ids)
-    }
+    share = int(
+        (Decimal(amount_pence) / Decimal(len(member_ids))).quantize(
+            Decimal('1'), rounding=ROUND_HALF_UP
+        )
+    )
+    return {member_id: share for member_id in member_ids}
 
 
 def calculate_balances(
@@ -49,10 +55,15 @@ def calculate_balances(
         balances[member['id']] += 0
 
     for expense in expenses:
-        amount = int(expense['amount_pence'])
         payer_id = expense['paid_by_member_id']
-        balances[payer_id] += amount
-        for split in splits_by_expense.get(expense['id'], []):
+        expense_splits = splits_by_expense.get(expense['id'], [])
+
+        # Use the rounded split total as the settlement basis. This keeps every
+        # selected person's displayed share identical (for example £6.67 each
+        # for a £20.00 three-way split) while keeping the balance ledger at zero.
+        settlement_basis = sum(int(split['share_pence']) for split in expense_splits)
+        balances[payer_id] += settlement_basis
+        for split in expense_splits:
             balances[split['member_id']] -= int(split['share_pence'])
 
     # A recorded payment moves both people toward zero.

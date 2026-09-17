@@ -210,6 +210,31 @@ def direct_whatsapp_url(phone: str | None, text: str) -> str | None:
     return f"https://wa.me/{digits}?text={quote(text)}"
 
 
+def whatsapp_button(label: str, text: str, *, phone: str | None = None) -> None:
+    """Render a clean WhatsApp-style share button with an inline icon."""
+    url = direct_whatsapp_url(phone, text) if phone else whatsapp_share_url(text)
+    if not url:
+        url = whatsapp_share_url(text)
+    safe_url = escape(url, quote=True)
+    safe_label = escape(label)
+    st.markdown(
+        f"""
+        <a href="{safe_url}" target="_blank" rel="noopener noreferrer"
+           style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+                  min-height:46px;box-sizing:border-box;border-radius:12px;padding:10px 16px;
+                  background:#25D366;color:#07130b;text-decoration:none;font-weight:850;
+                  border:1px solid #39df79;box-shadow:0 8px 22px rgba(37,211,102,.14);">
+          <svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="white"/>
+            <path d="M8.4 7.2c.25-.55.52-.56.77-.57h.65c.2 0 .42.08.52.34l.79 1.92c.09.22.05.42-.07.61l-.47.65c-.13.17-.27.32-.12.58.15.26.67 1.08 1.46 1.75 1 .87 1.84 1.14 2.1 1.27.26.13.41.11.57-.07l.85-.99c.2-.23.4-.19.67-.09l1.73.82c.27.13.45.19.52.3.07.11.07.63-.15 1.24-.22.61-1.28 1.17-1.76 1.24-.45.07-1.02.1-1.65-.1-.38-.12-.86-.28-1.48-.55a8.92 8.92 0 0 1-3.55-3.12c-.96-1.31-1.61-2.93-1.66-3.06-.05-.13-.5-1.33.24-2.02Z" fill="#25D366"/>
+          </svg>
+          <span>{safe_label}</span>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def parse_db_date(value) -> date:
     if isinstance(value, date):
         return value
@@ -433,17 +458,10 @@ if page == 'Home':
     # Fast phone actions: prepare live data and hand it to WhatsApp.
     home_summary = weekly_summary(current_start, week_end, expenses, splits_by_expense, settlements, transfers, shopping)
     share1, share2 = st.columns(2)
-    share1.link_button(
-        '📲 Share shopping list on WhatsApp',
-        whatsapp_share_url(shopping_text(shopping)),
-        type='primary',
-        use_container_width=True,
-    )
-    share2.link_button(
-        '📲 Share weekly balance on WhatsApp',
-        whatsapp_share_url(home_summary),
-        use_container_width=True,
-    )
+    with share1:
+        whatsapp_button('Share shopping list', shopping_text(shopping))
+    with share2:
+        whatsapp_button('Share weekly balance', home_summary)
 
     st.subheader('Quick add')
     quick_tab1, quick_tab2, quick_tab3 = st.tabs(['🛒 Shopping', '💳 Expense', '🔔 Reminder'])
@@ -588,7 +606,7 @@ elif page == 'Shopping':
     active = [x for x in shopping if not x.get('is_bought')]
     bought = [x for x in shopping if x.get('is_bought')]
 
-    st.link_button('📲 Open WhatsApp with latest shopping list', whatsapp_share_url(shopping_text(shopping)), type='primary', use_container_width=True)
+    whatsapp_button('Share latest shopping list', shopping_text(shopping))
 
     st.subheader(f'To buy · {len(active)}')
     if not active:
@@ -711,10 +729,10 @@ elif page == 'Balance':
                 f"<div class='{status_class}' style='margin-top:.6rem'>{status}</div></div>",
                 unsafe_allow_html=True,
             )
-    st.caption('If a total cannot divide perfectly into pennies, only the unavoidable 1p remainder is allocated. Amounts always stay as proper money such as £6.67 — never long decimals.')
+    st.caption('District 11 rounds to one identical share for everyone. Example: £20.00 split three ways displays £6.67 each; the 1p rounding difference is absorbed so nobody gets a different-looking share.')
 
     summary = weekly_summary(selected_start, selected_end, expenses, splits_by_expense, settlements, transfers, shopping)
-    st.link_button('📲 Open WhatsApp with weekly breakdown', whatsapp_share_url(summary), type='primary', use_container_width=True)
+    whatsapp_button('Share weekly breakdown', summary)
 
     st.subheader('Settle up')
     if not transfers:
@@ -733,9 +751,11 @@ elif page == 'Balance':
             left.markdown(f"## {money(transfer['amount_pence'])}")
             direct_url = direct_whatsapp_url(sender.get('phone_number'), text)
             if direct_url:
-                right.link_button('📲 WhatsApp payer', direct_url, use_container_width=True)
+                with right:
+                    whatsapp_button('Message payer', text, phone=sender.get('phone_number'))
             else:
-                right.link_button('📲 Share payment', whatsapp_share_url(text), use_container_width=True)
+                with right:
+                    whatsapp_button('Share payment', text)
             if right.button(
                 f"✓ Mark {money(transfer['amount_pence'])} paid",
                 key=f"settle_{selected_start}_{idx}_{sender['id']}_{receiver['id']}",
