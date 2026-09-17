@@ -1,23 +1,24 @@
 # District 11
 
-A simple shared household portal built with Streamlit + Supabase.
+Simple shared household portal using Streamlit + Supabase.
 
-## Included now
+## Current features
 
 - Home dashboard
-- Shared shopping list
-- Mark shopping items bought / undo / delete
-- Open WhatsApp with the current **unbought** shopping list ready to share
-- Shared expenses
-- Choose who paid and who shared each expense
-- Simple equal-looking rounded splitting (e.g. £20 / 3 = £6.67 each)
-- Weekly balance and minimum settle-up transfers
-- Open WhatsApp with the current outstanding weekly balance ready to share
-- Mark settlements paid and keep payment history
-- Reminders/calendar
-- Dark theme and mobile-friendly layout
+- Shopping list with no “added by” requirement
+- Add an item + optional quantity
+- One-tap **Bought ✓** button
+- Bought items move out of the active list
+- Undo or delete shopping items
+- WhatsApp share contains only items still left to buy
+- Shared expenses and automatic equal-looking split
+- Weekly balance and who-pays-who settlement
+- Mark settlements paid
+- WhatsApp balance sharing
+- Reminders
+- Dark/mobile-friendly UI
 
-Bills and household-management screens are intentionally hidden for now to keep the portal simple.
+Shopping is intentionally simple: names are not recorded for who added or bought an item. Names remain on expenses because they are required for balance calculations.
 
 ## Streamlit secrets
 
@@ -25,28 +26,3 @@ Bills and household-management screens are intentionally hidden for now to keep 
 SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
 SUPABASE_KEY = "sb_secret_..."
 ```
-
-Keep the secret key in Streamlit Secrets only. Do not commit it to GitHub.
-
-## GitHub files
-
-- `app.py`
-- `calculations.py`
-- `db.py`
-- `requirements.txt`
-- `.streamlit/config.toml`
-- `.gitignore`
-
-## Run locally
-
-```bash
-python3 -m pip install -r requirements.txt
-python3 -m streamlit run app.py
-```
-
-
-## Equal split rule
-District 11 deliberately uses the same rounded share for every selected person. For example, £20.00 split between three people is shown as £6.67 each. A tiny rounding adjustment (1p in this example) is absorbed into the settlement basis so one person is not shown a different share.
-
-## WhatsApp sharing
-The Shopping and Balance pages use green WhatsApp-style share buttons. Shopping shares only items still marked as not bought. Balance shares the current outstanding settlement.

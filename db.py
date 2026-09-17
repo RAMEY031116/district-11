@@ -87,7 +87,7 @@ def add_shopping_item(household_id: str, item_name: str, quantity: str, added_by
     return _data(get_client().table('shopping_items').insert(payload).execute())[0]
 
 
-def mark_shopping_bought(item_id: str, member_id: str):
+def mark_shopping_bought(item_id: str, member_id: str | None = None):
     return _data(
         get_client().table('shopping_items')
         .update({

@@ -471,12 +471,11 @@ if page == 'Home':
             qa, qb = st.columns([2, 1])
             q_item = qa.text_input('Item', placeholder='Milk, rice, washing liquid…', key='home_shopping_item')
             q_qty = qb.text_input('Quantity', placeholder='2 packs', key='home_shopping_qty')
-            q_added = st.selectbox('Added by', [m['name'] for m in members], key='home_shopping_added_by')
             if st.form_submit_button('Add to shopping list', type='primary', use_container_width=True):
                 if not q_item.strip():
                     st.error('Enter an item name.')
                 else:
-                    db.add_shopping_item(household['id'], q_item, q_qty, member_id_by_name[q_added])
+                    db.add_shopping_item(household['id'], q_item, q_qty, None)
                     st.success('Added to shopping list.')
                     st.rerun()
 
@@ -591,16 +590,15 @@ elif page == 'Shopping':
     shopping = db.list_shopping(household['id'])
 
     with st.form('add_shopping', clear_on_submit=True):
-        a, b, c = st.columns([2, 1, 1])
+        a, b = st.columns([2, 1])
         item_name = a.text_input('Item', placeholder='Milk, rice, washing liquid…', key='shopping_item_name')
         quantity = b.text_input('Quantity', placeholder='2 packs', key='shopping_quantity')
-        added_by_name = c.selectbox('Added by', [m['name'] for m in members])
         submitted = st.form_submit_button('Add to list', type='primary', use_container_width=True)
         if submitted:
             if not item_name.strip():
                 st.error('Enter an item name.')
             else:
-                db.add_shopping_item(household['id'], item_name, quantity, member_id_by_name[added_by_name])
+                db.add_shopping_item(household['id'], item_name, quantity, None)
                 st.rerun()
 
     active = [x for x in shopping if not x.get('is_bought')]
@@ -613,25 +611,25 @@ elif page == 'Shopping':
         st.success('Everything on the list has been bought ✅')
     for item in active:
         with st.container(border=True):
-            c1, c2 = st.columns([3, 2])
+            c1, c2 = st.columns([4, 2])
             qty = f" · {item['quantity']}" if item.get('quantity') else ''
-            added_by = member_name.get(item.get('added_by_member_id'), 'House')
-            c1.markdown(f"**{item['item_name']}**{qty}")
-            c1.caption(f"Added by {added_by}")
-            buyer_name = c2.selectbox('Bought by', [m['name'] for m in members], key=f"buyer_{item['id']}")
+            c1.markdown(f"### {item['item_name']}{qty}")
+            c1.caption('Still needed')
             b1, b2 = c2.columns(2)
-            if b1.button('✓ Bought', key=f"bought_{item['id']}", use_container_width=True):
-                db.mark_shopping_bought(item['id'], member_id_by_name[buyer_name])
+            if b1.button('Bought ✓', key=f"bought_{item['id']}", type='primary', use_container_width=True):
+                db.mark_shopping_bought(item['id'], None)
                 st.rerun()
             if b2.button('Delete', key=f"delete_shop_{item['id']}", use_container_width=True):
                 db.delete_shopping_item(item['id'])
                 st.rerun()
 
-    with st.expander(f'Bought items · {len(bought)}'):
+    with st.expander(f'Bought · {len(bought)}', expanded=False):
+        if not bought:
+            st.caption('Nothing bought yet.')
         for item in bought[:50]:
-            who = member_name.get(item.get('bought_by_member_id'), 'Someone')
             c1, c2 = st.columns([4, 1])
-            c1.write(f"✅ {item['item_name']} — {who}")
+            qty = f" · {item['quantity']}" if item.get('quantity') else ''
+            c1.write(f"✅ {item['item_name']}{qty}")
             if c2.button('Undo', key=f"undo_{item['id']}", use_container_width=True):
                 db.reopen_shopping_item(item['id'])
                 st.rerun()
