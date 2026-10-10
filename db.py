@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Iterable
 
 import streamlit as st
@@ -126,15 +126,25 @@ def list_expenses(household_id: str, start: date, end: date) -> list[dict]:
     )
 
 
-def list_all_expenses(household_id: str, limit: int = 250) -> list[dict]:
-    return _data(
-        get_client().table('expenses')
-        .select('*')
-        .eq('household_id', household_id)
-        .order('expense_date', desc=True)
-        .limit(limit)
-        .execute()
-    )
+def list_all_expenses(household_id: str, limit: int | None = None) -> list[dict]:
+    """Fetch the entire expense ledger using pages, not just a recent subset."""
+    rows = []
+    offset = 0
+    page_size = 500
+    while True:
+        batch = _data(
+            get_client().table('expenses')
+            .select('*')
+            .eq('household_id', household_id)
+            .order('expense_date', desc=True)
+            .order('id', desc=True)
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows.extend(batch)
+        if len(batch) < page_size or (limit is not None and len(rows) >= limit):
+            return rows[:limit] if limit is not None else rows
+        offset += page_size
 
 
 def list_splits(expense_ids: Iterable[str]) -> list[dict]:
@@ -181,23 +191,25 @@ def delete_expense(expense_id: str):
 
 
 def list_settlements(household_id: str, week_start: date | None = None) -> list[dict]:
-    query = (get_client().table('settlements')
-             .select('*')
-             .eq('household_id', household_id)
-             .eq('status', 'paid'))
-    rows = _data(query.order('paid_at', desc=True).execute())
+    """Read all confirmed payments, optionally filtering a display-only week."""
+    rows = []
+    offset = 0
+    page_size = 500
+    while True:
+        batch = _data(get_client().table('settlements')
+                      .select('*').eq('household_id', household_id)
+                      .eq('status', 'paid').order('paid_at', desc=True)
+                      .order('id', desc=True)
+                      .range(offset, offset + page_size - 1).execute())
+        rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        offset += page_size
     if week_start is None:
         return rows
-    week_end = week_start.fromordinal(week_start.toordinal() + 6)
-    filtered = []
-    for row in rows:
-        stamp = row.get('paid_at') or row.get('created_at')
-        if not stamp:
-            continue
-        paid_day = date.fromisoformat(str(stamp)[:10])
-        if week_start <= paid_day <= week_end:
-            filtered.append(row)
-    return filtered
+    week_end = week_start + timedelta(days=6)
+    return [row for row in rows
+            if week_start <= date.fromisoformat(str(row.get('paid_at') or row.get('created_at'))[:10]) <= week_end]
 
 
 def mark_settlement_paid(

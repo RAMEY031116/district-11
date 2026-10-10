@@ -12,7 +12,7 @@ from calculations import calculate_balances, equal_split, minimize_transfers, mo
 
 st.set_page_config(
     page_title='District 11',
-    page_icon='🏠',
+    page_icon='D',
     layout='wide',
     initial_sidebar_state='collapsed',
 )
@@ -46,7 +46,7 @@ st.markdown(
     h1,h2,h3,h4,h5,h6,p,label,span,div { color:inherit; }
     .stCaption, [data-testid="stCaptionContainer"] { color:var(--muted) !important; }
 
-    /* Inputs — force a consistent dark field surface and readable typing. */
+    /* Inputs - force a consistent dark field surface and readable typing. */
     [data-testid="stTextInput"] input,
     [data-testid="stNumberInput"] input,
     [data-testid="stTextArea"] textarea,
@@ -242,34 +242,53 @@ def parse_db_date(value) -> date:
 
 
 def current_week_data(selected_start: date):
+    """Return weekly activity plus the household's cumulative outstanding balance.
+
+    A week boundary is only for reporting. Unpaid debt must carry forward until
+    the recipient explicitly confirms that the money was received.
+    """
     selected_end = selected_start + timedelta(days=6)
+
+    # Weekly activity: used for the selected week's spend/history only.
     expenses = db.list_expenses(household['id'], selected_start, selected_end)
-    splits = db.list_splits([e['id'] for e in expenses])
+    weekly_splits = db.list_splits([e['id'] for e in expenses])
     splits_by_expense = defaultdict(list)
-    for row in splits:
+    for row in weekly_splits:
         splits_by_expense[row['expense_id']].append(row)
     settlements = [s for s in db.list_settlements(household['id'], selected_start) if s.get('status') == 'paid']
-    balances = calculate_balances(members, expenses, splits_by_expense, settlements)
+
+    # Outstanding ledger: ALL expenses minus ALL confirmed receipts. This is
+    # deliberately not filtered by week, so Monday never resets money owed.
+    all_expenses = db.list_all_expenses(household['id'])
+    all_splits = db.list_splits([e['id'] for e in all_expenses])
+    all_splits_by_expense = defaultdict(list)
+    for row in all_splits:
+        all_splits_by_expense[row['expense_id']].append(row)
+    all_confirmed_settlements = [
+        s for s in db.list_settlements(household['id']) if s.get('status') == 'paid'
+    ]
+    balances = calculate_balances(members, all_expenses, all_splits_by_expense, all_confirmed_settlements)
     transfers = minimize_transfers(balances)
+
     return selected_end, expenses, splits_by_expense, settlements, balances, transfers
 
 
 def shopping_text(shopping: list[dict]) -> str:
     active = [item for item in shopping if not item.get('is_bought')]
-    lines = ['🛒 District 11 shopping list']
+    lines = [' District 11 shopping list']
     if not active:
-        lines.append('Everything is bought ✅')
+        lines.append('Everything is bought ')
     else:
         lines.append('')
         for item in active:
             qty = f" ({item['quantity']})" if item.get('quantity') else ''
-            lines.append(f"• {item['item_name']}{qty}")
+            lines.append(f"{item['item_name']}{qty}")
     return '\n'.join(lines)
 
 
 def weekly_summary(selected_start: date, selected_end: date, expenses, splits_by_expense, settlements, transfers, shopping) -> str:
     lines = [
-        f"🏠 District 11 weekly summary ({selected_start:%d %b}–{selected_end:%d %b})",
+        f" District 11 weekly summary ({selected_start:%d %b}-{selected_end:%d %b})",
         '',
         f"Total household spend: {money(sum(int(e['amount_pence']) for e in expenses))}",
     ]
@@ -277,39 +296,39 @@ def weekly_summary(selected_start: date, selected_end: date, expenses, splits_by
         lines.append('\nPaid this week:')
         for member in members:
             paid = sum(int(e['amount_pence']) for e in expenses if e['paid_by_member_id'] == member['id'])
-            lines.append(f"• {member['name']}: {money(paid)}")
+            lines.append(f"{member['name']}: {money(paid)}")
 
         lines.append('\nBreakdown:')
         for expense in sorted(expenses, key=lambda e: e['expense_date']):
             split_names = ', '.join(member_name.get(s['member_id'], 'Unknown') for s in splits_by_expense.get(expense['id'], []))
             lines.append(
-                f"• {expense['description']}: {money(expense['amount_pence'])} — "
-                f"{member_name.get(expense['paid_by_member_id'], 'Unknown')} paid — for {split_names}"
+                f"{expense['description']}: {money(expense['amount_pence'])} - "
+                f"{member_name.get(expense['paid_by_member_id'], 'Unknown')} paid - for {split_names}"
             )
 
     if settlements:
         lines.append('\nAlready paid:')
         for s in reversed(settlements):
             lines.append(
-                f"• {member_name.get(s['from_member_id'], 'Unknown')} → "
-                f"{member_name.get(s['to_member_id'], 'Unknown')}: {money(s['amount_pence'])} ✅"
+                f"{member_name.get(s['from_member_id'], 'Unknown')} to "
+                f"{member_name.get(s['to_member_id'], 'Unknown')}: {money(s['amount_pence'])} "
             )
 
     lines.append('\nOutstanding settlement:')
     if transfers:
         for t in transfers:
             lines.append(
-                f"• {member_name[t['from_member_id']]} → {member_name[t['to_member_id']]}: {money(t['amount_pence'])}"
+                f"{member_name[t['from_member_id']]} to {member_name[t['to_member_id']]}: {money(t['amount_pence'])}"
             )
     else:
-        lines.append('• Everyone is settled ✅')
+        lines.append('Everyone is settled ')
 
     active = [i for i in shopping if not i.get('is_bought')]
     if active:
         lines.append('\nStill to buy:')
         for item in active[:25]:
             qty = f" ({item['quantity']})" if item.get('quantity') else ''
-            lines.append(f"• {item['item_name']}{qty}")
+            lines.append(f"{item['item_name']}{qty}")
     return '\n'.join(lines)
 
 
@@ -396,7 +415,7 @@ def render_balance_visual(stats):
         )
 
     st.markdown(
-        "<div class='card'><div class='card-sub' style='margin-bottom:.4rem'>Owes ← <span style='padding:0 .5rem'>£0</span> → Receives</div>"
+        "<div class='card'><div class='card-sub' style='margin-bottom:.4rem'>Owes ← <span style='padding:0 .5rem'>£0</span> to Receives</div>"
         + ''.join(rows)
         + "</div>",
         unsafe_allow_html=True,
@@ -406,8 +425,8 @@ def render_balance_visual(stats):
 # ---------- Simple navigation ----------
 st.markdown(
     "<div style='display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 .65rem'>"
-    "<span class='pill'>District 11 · Simple</span>"
-    "<span style='color:#64748b;font-size:.82rem'>Bipesh · Sabin · Yush</span>"
+    "<span class='pill'>District 11 | Simple</span>"
+    "<span style='color:#64748b;font-size:.82rem'>Bipesh | Sabin | Yush</span>"
     "</div>",
     unsafe_allow_html=True,
 )
@@ -464,7 +483,7 @@ if page == 'Home':
         whatsapp_button('Share weekly balance', home_summary)
 
     st.subheader('Quick add')
-    quick_tab1, quick_tab2, quick_tab3 = st.tabs(['🛒 Shopping', '💳 Expense', '🔔 Reminder'])
+    quick_tab1, quick_tab2, quick_tab3 = st.tabs(['Shopping', 'Expense', 'Reminder'])
 
     with quick_tab1:
         with st.form('home_add_shopping', clear_on_submit=True):
@@ -517,31 +536,31 @@ if page == 'Home':
                     st.success('Reminder added.')
                     st.rerun()
 
-    st.subheader('This week at a glance')
-    if expenses:
-        stats = member_week_stats(expenses, splits_by_expense, balances)
-        glance_cols = st.columns(max(1, min(3, len(stats))))
-        for idx, row in enumerate(stats):
-            with glance_cols[idx % len(glance_cols)]:
-                if row['balance'] > 0:
-                    status = f"Receives {money(row['balance'])}"
-                    status_class = 'receive'
-                elif row['balance'] < 0:
-                    status = f"Owes {money(abs(row['balance']))}"
-                    status_class = 'owe'
-                else:
-                    status = 'Settled'
-                    status_class = 'settled'
-                st.markdown(
-                    f"<div class='card'><div class='card-title'>{row['name']}</div>"
-                    f"<div class='card-sub'>Paid <strong>{money(row['paid'])}</strong> · Fair share <strong>{money(row['fair_share'])}</strong></div>"
-                    f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
-                    unsafe_allow_html=True,
-                )
-        render_balance_visual(stats)
-        st.caption('Positive balance = should receive money. Negative balance = owes money. District 11 keeps every penny exact, so the household total always matches the real spend.')
+    st.subheader('Current outstanding balances')
+    stats = member_week_stats(expenses, splits_by_expense, balances)
+    glance_cols = st.columns(max(1, min(3, len(stats))))
+    for idx, row in enumerate(stats):
+        with glance_cols[idx % len(glance_cols)]:
+            if row['balance'] > 0:
+                status = f"Receives {money(row['balance'])}"
+                status_class = 'receive'
+            elif row['balance'] < 0:
+                status = f"Owes {money(abs(row['balance']))}"
+                status_class = 'owe'
+            else:
+                status = 'Settled'
+                status_class = 'settled'
+            st.markdown(
+                f"<div class='card'><div class='card-title'>{row['name']}</div>"
+                f"<div class='card-sub'>This week: paid <strong>{money(row['paid'])}</strong> | share <strong>{money(row['fair_share'])}</strong></div>"
+                f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
+                unsafe_allow_html=True,
+            )
+    render_balance_visual(stats)
+    if not expenses:
+        st.caption('No new expenses this week. Any older unpaid balance still remains below until receipt is confirmed.')
     else:
-        st.info('No expenses have been added for this week yet.')
+        st.caption('Weekly spend resets for reporting only. Outstanding money carries forward until the recipient confirms receipt.')
 
     left, right = st.columns(2)
     with left:
@@ -549,12 +568,12 @@ if page == 'Home':
         if transfers:
             for transfer in transfers:
                 st.markdown(
-                    f"<div class='card'><div class='card-title'>{member_name[transfer['from_member_id']]} → {member_name[transfer['to_member_id']]}</div>"
+                    f"<div class='card'><div class='card-title'>{member_name[transfer['from_member_id']]} to {member_name[transfer['to_member_id']]}</div>"
                     f"<div class='card-sub'>{money(transfer['amount_pence'])} still outstanding</div></div>",
                     unsafe_allow_html=True,
                 )
         else:
-            st.success('Everyone is settled for this week ✅')
+            st.success('Everyone is fully settled.')
 
     with right:
         st.subheader('Coming up')
@@ -571,11 +590,11 @@ if page == 'Home':
                     day_label = event_day.strftime('%a %d %b')
                 when = day_label
                 if event.get('event_time'):
-                    when += f" · {str(event['event_time'])[:5]}"
+                    when += f" | {str(event['event_time'])[:5]}"
                 notes = event.get('description') or ''
                 note_html = f"<div class='card-sub'>{notes}</div>" if notes else ''
                 st.markdown(
-                    f"<div class='card'><div class='card-title'>🔔 {event['title']}</div><div class='card-sub'>{when}</div>{note_html}</div>",
+                    f"<div class='card'><div class='card-title'> {event['title']}</div><div class='card-sub'>{when}</div>{note_html}</div>",
                     unsafe_allow_html=True,
                 )
         else:
@@ -584,8 +603,8 @@ if page == 'Home':
 
 # ---------- SHOPPING ----------
 elif page == 'Shopping':
-    st.title('🛒 Shopping')
-    st.caption('Add something the moment you remember it. Anyone can mark it bought later.')
+    st.title(' Shopping')
+    st.caption('Open items carry forward until someone explicitly marks them bought. A new week never clears the list.')
     st.info('Type into the fields below, then press **Add to list**. Your data is saved to Supabase.')
     shopping = db.list_shopping(household['id'])
 
@@ -606,30 +625,30 @@ elif page == 'Shopping':
 
     whatsapp_button('Share latest shopping list', shopping_text(shopping))
 
-    st.subheader(f'To buy · {len(active)}')
+    st.subheader(f'To buy | {len(active)}')
     if not active:
-        st.success('Everything on the list has been bought ✅')
+        st.success('Everything on the list has been bought ')
     for item in active:
         with st.container(border=True):
             c1, c2 = st.columns([4, 2])
-            qty = f" · {item['quantity']}" if item.get('quantity') else ''
+            qty = f" | {item['quantity']}" if item.get('quantity') else ''
             c1.markdown(f"### {item['item_name']}{qty}")
             c1.caption('Still needed')
             b1, b2 = c2.columns(2)
-            if b1.button('Bought ✓', key=f"bought_{item['id']}", type='primary', use_container_width=True):
+            if b1.button('Bought ', key=f"bought_{item['id']}", type='primary', use_container_width=True):
                 db.mark_shopping_bought(item['id'], None)
                 st.rerun()
             if b2.button('Delete', key=f"delete_shop_{item['id']}", use_container_width=True):
                 db.delete_shopping_item(item['id'])
                 st.rerun()
 
-    with st.expander(f'Bought · {len(bought)}', expanded=False):
+    with st.expander(f'Bought | {len(bought)}', expanded=False):
         if not bought:
             st.caption('Nothing bought yet.')
         for item in bought[:50]:
             c1, c2 = st.columns([4, 1])
-            qty = f" · {item['quantity']}" if item.get('quantity') else ''
-            c1.write(f"✅ {item['item_name']}{qty}")
+            qty = f" | {item['quantity']}" if item.get('quantity') else ''
+            c1.write(f" {item['item_name']}{qty}")
             if c2.button('Undo', key=f"undo_{item['id']}", use_container_width=True):
                 db.reopen_shopping_item(item['id'])
                 st.rerun()
@@ -637,7 +656,7 @@ elif page == 'Shopping':
 
 # ---------- EXPENSES ----------
 elif page == 'Expenses':
-    st.title('💳 Expenses')
+    st.title(' Expenses')
     st.caption('Record who paid and who benefited. District 11 works out the balance automatically.')
     st.info('Enter the purchase, amount, payer and who shared it. Press **Add expense** to save it.')
 
@@ -675,7 +694,7 @@ elif page == 'Expenses':
 
     start = st.date_input('Show week starting', value=current_start, key='expenses_week')
     end, expenses, splits_by_expense, _, _, _ = current_week_data(start)
-    st.subheader(f'{start:%d %b} – {end:%d %b}')
+    st.subheader(f'{start:%d %b} - {end:%d %b}')
     if not expenses:
         st.info('No expenses in this week.')
     for expense in expenses:
@@ -683,7 +702,7 @@ elif page == 'Expenses':
         with st.container(border=True):
             c1, c2, c3 = st.columns([3, 1.2, 1])
             c1.markdown(f"**{expense['description']}**")
-            c1.caption(f"{member_name.get(expense['paid_by_member_id'], 'Unknown')} paid · split with {split_names} · {expense['expense_date']}")
+            c1.caption(f"{member_name.get(expense['paid_by_member_id'], 'Unknown')} paid | split with {split_names} | {expense['expense_date']}")
             c2.markdown(f"### {money(expense['amount_pence'])}")
             if c3.button('Delete', key=f"del_exp_{expense['id']}", use_container_width=True):
                 db.delete_expense(expense['id'])
@@ -692,20 +711,20 @@ elif page == 'Expenses':
 
 # ---------- BALANCE ----------
 elif page == 'Balance':
-    st.title('⚖️ Balance')
-    st.caption('The app nets everything together so nobody sends money back and forth unnecessarily.')
+    st.title('Balance')
+    st.caption('Outstanding balances carry forward across weeks and only clear when the recipient confirms the money was received.')
 
-    selected_start = st.date_input('Week starting', value=current_start, key='balance_week')
+    selected_start = st.date_input('Activity week starting', value=current_start, key='balance_week')
     selected_end, expenses, splits_by_expense, settlements, balances, transfers = current_week_data(selected_start)
     shopping = db.list_shopping(household['id'])
 
     c1, c2, c3 = st.columns(3)
-    c1.metric('Household spend', money(sum(int(e['amount_pence']) for e in expenses)))
-    c2.metric('Paid settlements', money(sum(int(s['amount_pence']) for s in settlements)))
-    c3.metric('Transfers remaining', str(len(transfers)))
+    c1.metric('Spend in selected week', money(sum(int(e['amount_pence']) for e in expenses)))
+    c2.metric('Receipts confirmed this week', money(sum(int(s['amount_pence']) for s in settlements)))
+    c3.metric('Outstanding transfers', str(len(transfers)))
 
     stats = member_week_stats(expenses, splits_by_expense, balances)
-    st.subheader('Live balance')
+    st.subheader('Outstanding balance')
     render_balance_visual(stats)
 
     cols = st.columns(max(1, min(3, len(stats))))
@@ -730,59 +749,62 @@ elif page == 'Balance':
     st.caption('District 11 rounds to one identical share for everyone. Example: £20.00 split three ways displays £6.67 each; the 1p rounding difference is absorbed so nobody gets a different-looking share.')
 
     summary = weekly_summary(selected_start, selected_end, expenses, splits_by_expense, settlements, transfers, shopping)
-    whatsapp_button('Share weekly breakdown', summary)
+    whatsapp_button('Share activity + outstanding balance', summary)
 
-    st.subheader('Settle up')
+    st.subheader('Manual settlement')
+    st.caption('No automatic settlement or weekly reset. Record a payment only after the recipient has actually received it. Partial payments are supported.')
     if not transfers:
-        st.success('Everyone is settled for this week ✅')
+        st.success('All balances are zero. No payments are outstanding.')
     for idx, transfer in enumerate(transfers):
         sender = member_by_id[transfer['from_member_id']]
         receiver = member_by_id[transfer['to_member_id']]
-        text = (
-            f"🏠 District 11\n\n{sender['name']} → {receiver['name']}: {money(transfer['amount_pence'])}\n"
-            f"Week {selected_start:%d %b}–{selected_end:%d %b}\n\n"
-            "Please send this when you can. Once paid, mark it as paid in District 11 ✅"
-        )
+        outstanding = int(transfer['amount_pence'])
         with st.container(border=True):
-            left, right = st.columns([2.2, 1.5])
-            left.markdown(f"### {sender['name']} → {receiver['name']}")
-            left.markdown(f"## {money(transfer['amount_pence'])}")
-            direct_url = direct_whatsapp_url(sender.get('phone_number'), text)
-            if direct_url:
-                with right:
-                    whatsapp_button('Message payer', text, phone=sender.get('phone_number'))
-            else:
-                with right:
-                    whatsapp_button('Share payment', text)
-            if right.button(
-                f"✓ Mark {money(transfer['amount_pence'])} paid",
-                key=f"settle_{selected_start}_{idx}_{sender['id']}_{receiver['id']}",
-                type='primary',
-                use_container_width=True,
-            ):
-                db.mark_settlement_paid(
-                    household['id'], sender['id'], receiver['id'], transfer['amount_pence'], selected_start
-                )
-                st.success('Payment recorded. Balances have been recalculated.')
-                st.rerun()
+            st.markdown(f"**{sender['name']} owes {receiver['name']}**")
+            st.write(f"Outstanding: {money(outstanding)}")
+            message = (f"District 11\n{sender['name']} owes {receiver['name']} {money(outstanding)}. "
+                       "This amount remains due until a payment is manually confirmed.")
+            whatsapp_button('Share balance', message, phone=sender.get('phone_number'))
+            with st.form(f"manual_payment_{sender['id']}_{receiver['id']}"):
+                payment = st.number_input('Amount received (£)', min_value=0.01,
+                                          max_value=outstanding / 100, value=outstanding / 100,
+                                          step=0.01, format='%.2f',
+                                          key=f"payment_amount_{idx}")
+                confirmed = st.checkbox(f"{receiver['name']} confirms this payment was received", key=f"payment_confirm_{idx}")
+                submitted = st.form_submit_button('Record received payment', type='primary')
+                if submitted:
+                    amount_pence = to_pence(payment)
+                    if not confirmed:
+                        st.error('Confirm that the recipient has received the money first.')
+                    elif not 0 < amount_pence <= outstanding:
+                        st.error('The payment must be greater than zero and no more than the outstanding amount.')
+                    else:
+                        db.mark_settlement_paid(household['id'], sender['id'], receiver['id'], amount_pence, selected_start)
+                        st.rerun()
 
-    st.subheader('Paid this week')
-    if not settlements:
-        st.caption('No settlement payments have been recorded yet.')
+    st.subheader('Payment history')
+    st.caption('Every manually confirmed payment is kept, including payments from previous weeks.')
+    payment_history = db.list_settlements(household['id'])
+    if not payment_history:
+        st.caption('No payments have been recorded yet.')
     else:
-        for settlement in settlements:
-            paid_at = str(settlement.get('paid_at', ''))[:16].replace('T', ' ')
-            st.markdown(
-                f"<div class='card'><div class='card-title'>✅ {member_name.get(settlement['from_member_id'], 'Unknown')} → "
-                f"{member_name.get(settlement['to_member_id'], 'Unknown')} · {money(settlement['amount_pence'])}</div>"
-                f"<div class='card-sub'>{paid_at}</div></div>",
-                unsafe_allow_html=True,
-            )
+        history_rows = []
+        for payment in payment_history:
+            paid_at = str(payment.get('paid_at') or payment.get('created_at') or '')[:16].replace('T', ' ')
+            history_rows.append({
+                'Date': paid_at,
+                'From': member_name.get(payment['from_member_id'], 'Unknown'),
+                'To': member_name.get(payment['to_member_id'], 'Unknown'),
+                'Amount': money(payment['amount_pence']),
+                'Status': 'Received',
+            })
+        st.dataframe(history_rows, use_container_width=True, hide_index=True)
+        st.caption(f"Total payments recorded: {len(payment_history)}")
 
 
 # ---------- CALENDAR ----------
 elif page == 'Reminders':
-    st.title('🔔 Reminders & calendar')
+    st.title('Reminders and calendar')
     st.caption('Add reminders, chores and house events here. They appear on the Home dashboard too.')
     st.info('Fill in the reminder below and press **Add to calendar**. Time is optional.')
 
@@ -820,7 +842,7 @@ elif page == 'Reminders':
             c1, c2 = st.columns([4, 1])
             when = parse_db_date(event['event_date']).strftime('%A %d %B')
             if event.get('event_time'):
-                when += f" · {str(event['event_time'])[:5]}"
+                when += f" | {str(event['event_time'])[:5]}"
             c1.markdown(f"**{event['title']}**")
             c1.caption(when)
             if event.get('description'):
