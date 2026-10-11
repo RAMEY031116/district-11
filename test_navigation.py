@@ -31,7 +31,7 @@ class NavigationTests(unittest.TestCase):
 
     def test_dashboard_shortcuts(self):
         for key, destination in [('home_debt', 'Balance'), ('home_shopping', 'Shopping'),
-                                 ('home_expenses', 'Expenses'), ('home_reminders', 'Reminders')]:
+                                 ('home_payments', 'Balance'), ('home_reminders', 'Reminders')]:
             with self.subTest(destination=destination):
                 app = self.app()
                 app.button(key=key).click().run()

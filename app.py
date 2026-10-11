@@ -636,34 +636,37 @@ if page == 'Home':
     if selected_member is not None:
         st.subheader(f"{member_name[selected_member]}'s home")
 
-    st.caption(f'THIS WEEK · {current_start:%d %b} – {week_end:%d %b}')
+    st.caption('CURRENT OUTSTANDING BALANCES · ALL WEEKS')
     with st.container(key='dashboard_overview'):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            dashboard_shortcut('Weekly spend' if selected_member is None else 'You paid this week',
-                               money(sum(int(e['amount_pence']) for e in expenses
-                                         if selected_member is None or e['paid_by_member_id'] == selected_member)),
-                               'View expenses', 'Expenses', 'home_expenses')
-        with c2:
-            dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
-                               'View list', 'Shopping', 'home_shopping')
-        with c3:
             dashboard_shortcut(
                 'Pending debt' if selected_member is None else ('You owe' if personal_balance < 0 else 'You are owed' if personal_balance > 0 else 'All settled'),
                 money(sum(t['amount_pence'] for t in transfers)) if selected_member is None else money(abs(personal_balance)),
-                               'Settle up', 'Balance', 'home_debt')
+                'See who owes whom', 'Balance', 'home_debt')
+        with c2:
+            dashboard_shortcut('Payments pending', str(len(visible_transfers)),
+                               'Review payments', 'Balance', 'home_payments')
+        with c3:
+            dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
+                               'View list', 'Shopping', 'home_shopping')
         with c4:
             dashboard_shortcut('Coming up', str(len(upcoming_events)),
                                'View dates', 'Reminders', 'home_reminders')
-    st.caption('Balances include previous weeks. Shopping and reminders are shared by the household.')
+    st.caption('Unpaid balances carry forward until the recipient confirms receipt. They never reset each week.')
 
     # Fast phone actions: prepare live data and hand it to WhatsApp.
-    home_summary = weekly_summary(current_start, week_end, expenses, splits_by_expense, settlements, transfers, shopping)
+    home_summary = 'District 11 · Outstanding balances\\n\\n' + (
+        '\\n'.join(
+            f"{member_name[t['from_member_id']]} owes {member_name[t['to_member_id']]} {money(t['amount_pence'])}"
+            for t in transfers
+        ) if transfers else 'Everyone is settled.'
+    )
     share1, share2 = st.columns(2)
     with share1:
         whatsapp_button('Share shopping list', shopping_text(shopping))
     with share2:
-        whatsapp_button('Share weekly balance', home_summary)
+        whatsapp_button('Share outstanding balances', home_summary)
 
     with st.expander('＋ Add shopping, an expense or a reminder', expanded=False):
         quick_tab1, quick_tab2, quick_tab3 = st.tabs(['Shopping', 'Expense', 'Reminder'])
@@ -738,17 +741,11 @@ if page == 'Home':
                 status_class = 'settled'
             st.markdown(
                 f"<div class='card'><div class='card-title'>{escape(str(row['name']))}</div>"
-                f"<div class='card-sub'>This week: paid <strong>{money(row['paid'])}</strong> | share <strong>{money(row['fair_share'])}</strong></div>"
                 f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
                 unsafe_allow_html=True,
             )
             st.button('View balance →', key=f"home_member_{row['id']}",
                       on_click=navigate, args=('Balance',), use_container_width=True)
-    if not expenses:
-        st.caption('No new expenses this week. Any older unpaid balance remains outstanding until receipt is confirmed.')
-    else:
-        st.caption('Weekly spend resets for reporting only. Outstanding money carries forward until the recipient confirms receipt.')
-
     left, right = st.columns(2)
     with left:
         st.subheader('Settle up' if selected_member is None else 'Your payments')
@@ -911,6 +908,22 @@ elif page == 'Balance':
     c1.metric('Spend in selected week', money(sum(int(e['amount_pence']) for e in expenses)))
     c2.metric('Receipts confirmed this week', money(sum(int(s['amount_pence']) for s in settlements)))
     c3.metric('Outstanding transfers', str(len(transfers)))
+
+    with st.expander('Download statement · PDF or CSV'):
+        st.caption('Full household statement across all weeks, with expenses, confirmed payments, outstanding balances and totals.')
+        if st.button('Prepare full statement', key='prepare_statement', use_container_width=True):
+            from statements import build_statement
+            with st.spinner('Preparing your statement...'):
+                statement_expenses = db.list_all_expenses(household['id'])
+                statement_splits = db.list_splits([e['id'] for e in statement_expenses])
+                statement_payments = db.list_settlements(household['id'])
+                pdf_bytes, csv_bytes = build_statement(members, statement_expenses, statement_splits, statement_payments)
+            filename = f'district-11-statement-{date.today().isoformat()}'
+            pdf_col, csv_col = st.columns(2)
+            pdf_col.download_button('Download PDF', pdf_bytes, file_name=filename + '.pdf',
+                                    mime='application/pdf', on_click='ignore', use_container_width=True)
+            csv_col.download_button('Download CSV', csv_bytes, file_name=filename + '.csv',
+                                    mime='text/csv', on_click='ignore', use_container_width=True)
 
     st.subheader('Settle up')
     st.caption('No automatic settlement or weekly reset. Record a payment only after the recipient has actually received it. Partial payments are supported.')
