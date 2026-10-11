@@ -233,6 +233,31 @@ st.markdown(
       .st-key-app_navigation button p { font-size:.75rem; }
       [class*="st-key-shortcut_"] button { min-height:92px; }
     }
+
+    /* Compact phone overview; retain single-column forms and payment cards. */
+    @media (max-width:768px) {
+      .block-container { padding-top:.4rem; }
+      .st-key-header_rule { display:none; }
+      .st-key-dashboard_overview [data-testid="stHorizontalBlock"] {
+        display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:10px !important;
+      }
+      .st-key-dashboard_overview [data-testid="stColumn"] {
+        width:100% !important; min-width:0 !important;
+      }
+      .st-key-dashboard_overview button {
+        min-height:106px; padding:12px 10px !important;
+      }
+      .st-key-dashboard_overview button p {
+        font-size:.88rem; line-height:1.4; overflow-wrap:anywhere;
+      }
+      .st-key-app_navigation button {
+        display:flex; flex-direction:column; gap:3px;
+        min-height:54px !important;
+      }
+      .st-key-app_navigation button p { font-size:.68rem; line-height:1.2; }
+      .st-key-app_navigation button [data-testid="stIconMaterial"] { font-size:20px; }
+    }
     </style>
     ''',
     unsafe_allow_html=True,
@@ -486,6 +511,14 @@ def render_balance_visual(stats):
 # ---------- Navigation ----------
 NAV_OPTIONS = ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders']
 NAV_KEY = 'top_navigation'
+NAV_ICONS = {
+    'Home': ':material/home:',
+    'Shopping': ':material/shopping_basket:',
+    'Expenses': ':material/receipt_long:',
+    'Balance': ':material/account_balance_wallet:',
+    'Reminders': ':material/notifications:',
+}
+NAV_LABELS = {'Expenses': 'Spend', 'Reminders': 'Dates'}
 
 
 def navigate(destination: str, transfer=None) -> None:
@@ -515,11 +548,13 @@ st.markdown(
 with st.container(key='app_navigation'):
     nav_columns = st.columns(len(NAV_OPTIONS))
     for nav_column, destination in zip(nav_columns, NAV_OPTIONS):
-        nav_column.button(destination, key=f'nav_{destination.lower()}',
+        nav_column.button(NAV_LABELS.get(destination, destination), icon=NAV_ICONS[destination],
+                          key=f'nav_{destination.lower()}',
                           type='primary' if st.session_state[NAV_KEY] == destination else 'secondary',
                           on_click=navigate, args=(destination,), use_container_width=True)
 page = st.session_state[NAV_KEY]
-st.divider()
+with st.container(key='header_rule'):
+    st.divider()
 
 
 # ---------- Shared week selector ----------
@@ -533,19 +568,20 @@ if page == 'Home':
     upcoming_events = db.list_events(household['id'], date.today(), date.today() + timedelta(days=14))
 
     st.caption(f'THIS WEEK · {current_start:%d %b} – {week_end:%d %b}')
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        dashboard_shortcut('Weekly spend', money(sum(int(e['amount_pence']) for e in expenses)),
-                           'View expenses', 'Expenses', 'home_expenses')
-    with c2:
-        dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
-                           'Open shopping list', 'Shopping', 'home_shopping')
-    with c3:
-        dashboard_shortcut('Pending debt', money(sum(t['amount_pence'] for t in transfers)),
-                           f'{len(transfers)} payments · Settle up', 'Balance', 'home_debt')
-    with c4:
-        dashboard_shortcut('Coming up', str(len(upcoming_events)),
-                           'View reminders', 'Reminders', 'home_reminders')
+    with st.container(key='dashboard_overview'):
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            dashboard_shortcut('Weekly spend', money(sum(int(e['amount_pence']) for e in expenses)),
+                               'View expenses', 'Expenses', 'home_expenses')
+        with c2:
+            dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
+                               'View list', 'Shopping', 'home_shopping')
+        with c3:
+            dashboard_shortcut('Pending debt', money(sum(t['amount_pence'] for t in transfers)),
+                               'Settle up', 'Balance', 'home_debt')
+        with c4:
+            dashboard_shortcut('Coming up', str(len(upcoming_events)),
+                               'View dates', 'Reminders', 'home_reminders')
     st.caption('Pending debt includes all unpaid balances, including previous weeks.')
 
     # Fast phone actions: prepare live data and hand it to WhatsApp.
