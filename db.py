@@ -31,15 +31,9 @@ def get_or_create_household(name: str = 'District 11') -> dict:
     else:
         household = _data(client.table('households').insert({'name': name}).execute())[0]
 
-    # Ensure the three requested members exist, without inserting demo spending data.
-    existing_members = _data(client.table('members').select('*').eq('household_id', household['id']).execute())
-    names = {m['name'].strip().lower() for m in existing_members}
-    missing = [name for name in ('Bipesh', 'Sabin', 'Yush') if name.lower() not in names]
-    if missing:
-        client.table('members').insert([
-            {'household_id': household['id'], 'name': member_name}
-            for member_name in missing
-        ]).execute()
+    # Members are stored in Supabase; do not publish or hard-code their names.
+    # Existing member IDs, expense history and balances remain unchanged.
+    # Add or update household members directly in the protected database.
     return household
 
 
