@@ -8,6 +8,8 @@ from html import escape
 from base64 import b64decode
 from io import BytesIO
 from PIL import Image
+from pathlib import Path
+import streamlit.components.v1 as components
 import streamlit as st
 
 import db
@@ -560,6 +562,26 @@ def dashboard_shortcut(label: str, value: str, detail: str, destination: str, ke
 if NAV_KEY not in st.session_state:
     st.session_state[NAV_KEY] = 'Home'
 
+# Store only the chosen view in this browser; no household data is stored locally.
+_home_preference = components.declare_component(
+    'district11_home_preference',
+    path=str(Path(__file__).parent / 'components' / 'home_preference'),
+)
+valid_home_members = [m['id'] for m in members]
+if st.session_state.get('home_member_id') not in valid_home_members:
+    st.session_state['home_member_id'] = None
+preference = _home_preference(
+    storage_key=f"district11.home-view.v1.{household['id']}",
+    selected=st.session_state.get('home_member_id'),
+    ready=st.session_state.get('home_preference_ready', False),
+    valid_members=valid_home_members,
+    default=None, key='remember_home_preference',
+)
+if not st.session_state.get('home_preference_ready') and isinstance(preference, dict):
+    remembered = preference.get('member_id')
+    st.session_state['home_member_id'] = remembered if remembered in valid_home_members else None
+    st.session_state['home_preference_ready'] = True
+
 # ---------- Simple navigation ----------
 st.markdown(
     "<div style='display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 .65rem'>"
@@ -599,6 +621,7 @@ if page == 'Home':
 
     def remember_home_view():
         st.session_state['home_member_id'] = st.session_state['home_view_selector']
+        st.session_state['home_preference_ready'] = True
 
     selected_member = st.selectbox(
         'My home · choose your name', view_options,
