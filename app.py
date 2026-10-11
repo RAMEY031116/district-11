@@ -591,22 +591,48 @@ if page == 'Home':
     week_end, expenses, splits_by_expense, settlements, balances, transfers = current_week_data(current_start)
     upcoming_events = db.list_events(household['id'], date.today(), date.today() + timedelta(days=14))
 
+    # Keep the chosen view while visiting other sections.
+    view_options = [None] + [m['id'] for m in members]
+    if st.session_state.get('home_member_id') not in view_options:
+        st.session_state['home_member_id'] = None
+    st.session_state['home_view_selector'] = st.session_state.get('home_member_id')
+
+    def remember_home_view():
+        st.session_state['home_member_id'] = st.session_state['home_view_selector']
+
+    selected_member = st.selectbox(
+        'My home · choose your name', view_options,
+        format_func=lambda member_id: 'Whole household' if member_id is None else member_name[member_id],
+        key='home_view_selector', on_change=remember_home_view,
+    )
+    personal_balance = int(balances.get(selected_member, 0))
+    visible_transfers = [
+        t for t in transfers
+        if selected_member is None or selected_member in (t['from_member_id'], t['to_member_id'])
+    ]
+    if selected_member is not None:
+        st.subheader(f"{member_name[selected_member]}'s home")
+
     st.caption(f'THIS WEEK · {current_start:%d %b} – {week_end:%d %b}')
     with st.container(key='dashboard_overview'):
         c1, c2, c3, c4 = st.columns(4)
         with c1:
-            dashboard_shortcut('Weekly spend', money(sum(int(e['amount_pence']) for e in expenses)),
+            dashboard_shortcut('Weekly spend' if selected_member is None else 'You paid this week',
+                               money(sum(int(e['amount_pence']) for e in expenses
+                                         if selected_member is None or e['paid_by_member_id'] == selected_member)),
                                'View expenses', 'Expenses', 'home_expenses')
         with c2:
             dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
                                'View list', 'Shopping', 'home_shopping')
         with c3:
-            dashboard_shortcut('Pending debt', money(sum(t['amount_pence'] for t in transfers)),
+            dashboard_shortcut(
+                'Pending debt' if selected_member is None else ('You owe' if personal_balance < 0 else 'You are owed' if personal_balance > 0 else 'All settled'),
+                money(sum(t['amount_pence'] for t in transfers)) if selected_member is None else money(abs(personal_balance)),
                                'Settle up', 'Balance', 'home_debt')
         with c4:
             dashboard_shortcut('Coming up', str(len(upcoming_events)),
                                'View dates', 'Reminders', 'home_reminders')
-    st.caption('Pending debt includes all unpaid balances, including previous weeks.')
+    st.caption('Balances include previous weeks. Shopping and reminders are shared by the household.')
 
     # Fast phone actions: prepare live data and hand it to WhatsApp.
     home_summary = weekly_summary(current_start, week_end, expenses, splits_by_expense, settlements, transfers, shopping)
@@ -671,8 +697,10 @@ if page == 'Home':
                         st.rerun()
 
 
-    st.subheader('Everyone’s balance')
+    st.subheader('Everyone’s balance' if selected_member is None else 'Your balance')
     stats = member_week_stats(expenses, splits_by_expense, balances)
+    if selected_member is not None:
+        stats = [row for row in stats if row['id'] == selected_member]
     glance_cols = st.columns(max(1, min(3, len(stats))))
     for idx, row in enumerate(stats):
         with glance_cols[idx % len(glance_cols)]:
@@ -700,9 +728,9 @@ if page == 'Home':
 
     left, right = st.columns(2)
     with left:
-        st.subheader('Settle up')
-        if transfers:
-            for idx, transfer in enumerate(transfers):
+        st.subheader('Settle up' if selected_member is None else 'Your payments')
+        if visible_transfers:
+            for idx, transfer in enumerate(visible_transfers):
                 sender = member_name[transfer['from_member_id']]
                 receiver = member_name[transfer['to_member_id']]
                 with st.container(key=f'shortcut_transfer_{idx}'):
@@ -710,7 +738,7 @@ if page == 'Home':
                               key=f'home_transfer_{idx}', use_container_width=True,
                               on_click=navigate, args=('Balance', (transfer['from_member_id'], transfer['to_member_id'])))
         else:
-            st.success('Everyone is fully settled.')
+            st.success('Everyone is fully settled.' if selected_member is None else 'You are all settled up.')
 
     with right:
         st.subheader('Coming up')
