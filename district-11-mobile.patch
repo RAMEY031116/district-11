@@ -1,0 +1,457 @@
+--- a/app.py
++++ b/app.py
+@@ -171,6 +171,47 @@
+       .stButton > button, .stLinkButton > a, [data-testid="stDownloadButton"] button { width:100%; min-height:47px; }
+       h1 { font-size:1.7rem !important; } h2 { font-size:1.35rem !important; } h3 { font-size:1.08rem !important; }
+       [data-testid="stRadio"] > div { flex-wrap:wrap !important; gap:.35rem !important; }
++    }
++
++    .brand { font-size:1.2rem; font-weight:850; letter-spacing:-.04em; }
++    .brand-number { color:#93c5fd; }
++    .brand-label { margin-left:.6rem; font-size:.9rem; letter-spacing:0; }
++    .hero { box-shadow:none; padding:32px; background:linear-gradient(120deg,#142338,#101b2b); }
++    .hero-title { letter-spacing:-.035em; font-size:2.4rem; }
++    [class*="st-key-shortcut_"] button {
++      width:100%; min-height:112px; padding:18px !important; text-align:left;
++      justify-content:flex-start; background:linear-gradient(145deg,#17253a,#111c2c) !important;
++      border:1px solid #30435c !important; border-radius:18px !important;
++      transition:background .15s,border-color .15s;
++    }
++    [class*="st-key-shortcut_"] button p { text-align:left; white-space:pre-line; font-size:1rem; line-height:1.6; }
++    [class*="st-key-shortcut_"] button:hover { background:#20334d !important; border-color:#93c5fd !important; }
++    .st-key-shortcut_home_debt button { border-color:#806546 !important; }
++    button:focus-visible, a:focus-visible { outline:3px solid #93c5fd !important; outline-offset:3px; }
++    [data-testid="stVerticalBlockBorderWrapper"] > div { border-radius:16px; }
++    [data-testid="stForm"] { box-shadow:none; }
++    [data-testid="stSegmentedControl"] button { min-height:46px !important; }
++    @media (max-width:768px) {
++      .hero-title { font-size:1.8rem; }
++      .brand-label { display:none; }
++      [data-testid="stColumn"] { min-width:100% !important; flex:1 1 100% !important; }
++      .block-container { padding-bottom:calc(7rem + env(safe-area-inset-bottom)); }
++      .st-key-app_navigation {
++        position:fixed; bottom:0; left:0; right:0; z-index:999;
++        background:#0d1726; border-top:1px solid #30435c;
++        padding:10px 8px calc(10px + env(safe-area-inset-bottom));
++        box-shadow:0 -8px 24px rgba(0,0,0,.25);
++      }
++      .st-key-app_navigation [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:4px !important; }
++      .st-key-app_navigation [data-testid="stColumn"] {
++        width:auto !important; min-width:0 !important; flex:1 1 0 !important;
++      }
++      .st-key-app_navigation button {
++        flex:1 1 0; min-width:0; min-height:48px !important;
++        padding:8px 5px !important; border-radius:12px !important;
++      }
++      .st-key-app_navigation button p { font-size:.75rem; }
++      [class*="st-key-shortcut_"] button { min-height:92px; }
+     }
+     </style>
+     ''',
+@@ -422,32 +463,42 @@
+     )
+ 
+ 
++# ---------- Navigation ----------
++NAV_OPTIONS = ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders']
++NAV_KEY = 'top_navigation'
++
++
++def navigate(destination: str, transfer=None) -> None:
++    """Callbacks run before widgets render, keeping the visible navigation in sync."""
++    st.session_state[NAV_KEY] = destination
++    st.session_state['focused_transfer'] = transfer
++
++
++def dashboard_shortcut(label: str, value: str, detail: str, destination: str, key: str) -> None:
++    with st.container(key=f'shortcut_{key}'):
++        st.button(f'{label} · {value}\n\n{detail} →', key=key,
++                  on_click=navigate, args=(destination,), use_container_width=True)
++
++
++if NAV_KEY not in st.session_state:
++    st.session_state[NAV_KEY] = 'Home'
++
+ # ---------- Simple navigation ----------
+ st.markdown(
+     "<div style='display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 .65rem'>"
+-    "<span class='pill'>District 11 | Simple</span>"
+-    "<span style='color:#64748b;font-size:.82rem'>Bipesh | Sabin | Yush</span>"
++    "<span class='brand'>D<span class='brand-number'>11</span> <span class='brand-label'>District 11</span></span>"
++    f"<span style='color:#94a3b8;font-size:.82rem'>{escape(' · '.join(m['name'] for m in members))}</span>"
+     "</div>",
+     unsafe_allow_html=True,
+ )
+ 
+-NAV_OPTIONS = ['Home', 'Shopping', 'Expenses', 'Balance', 'Reminders']
+-if hasattr(st, 'segmented_control'):
+-    page = st.segmented_control(
+-        'Section',
+-        NAV_OPTIONS,
+-        default='Home',
+-        selection_mode='single',
+-        label_visibility='collapsed',
+-        key='top_navigation',
+-    ) or 'Home'
+-else:
+-    page = st.selectbox(
+-        'Section',
+-        NAV_OPTIONS,
+-        label_visibility='collapsed',
+-        key='top_navigation_fallback',
+-    )
++with st.container(key='app_navigation'):
++    nav_columns = st.columns(len(NAV_OPTIONS))
++    for nav_column, destination in zip(nav_columns, NAV_OPTIONS):
++        nav_column.button(destination, key=f'nav_{destination.lower()}',
++                          type='primary' if st.session_state[NAV_KEY] == destination else 'secondary',
++                          on_click=navigate, args=(destination,), use_container_width=True)
++page = st.session_state[NAV_KEY]
+ st.divider()
+ 
+ 
+@@ -462,17 +513,27 @@
+     upcoming_events = db.list_events(household['id'], date.today(), date.today() + timedelta(days=14))
+ 
+     st.markdown(
+-        '''<div class="hero"><div class="hero-kicker">Household operating system</div>
+-        <div class="hero-title">District 11</div>
+-        <div class="hero-sub">Shopping, shared expenses, balances and reminders in one simple place.</div></div>''',
++        '''<div class="hero"><div class="hero-kicker">Your shared home</div>
++        <div class="hero-title">A little less life admin.</div>
++        <div class="hero-sub">See what needs doing, settle up and keep the household moving.</div></div>''',
+         unsafe_allow_html=True,
+     )
+ 
++    st.caption(f'THIS WEEK · {current_start:%d %b} – {week_end:%d %b}')
+     c1, c2, c3, c4 = st.columns(4)
+-    c1.metric('Spent this week', money(sum(int(e['amount_pence']) for e in expenses)))
+-    c2.metric('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))))
+-    c3.metric('Transfers left', str(len(transfers)))
+-    c4.metric('Upcoming reminders', str(len(upcoming_events)))
++    with c1:
++        dashboard_shortcut('Weekly spend', money(sum(int(e['amount_pence']) for e in expenses)),
++                           'View expenses', 'Expenses', 'home_expenses')
++    with c2:
++        dashboard_shortcut('Shopping left', str(sum(1 for x in shopping if not x.get('is_bought'))),
++                           'Open shopping list', 'Shopping', 'home_shopping')
++    with c3:
++        dashboard_shortcut('Pending debt', money(sum(t['amount_pence'] for t in transfers)),
++                           f'{len(transfers)} payments · Settle up', 'Balance', 'home_debt')
++    with c4:
++        dashboard_shortcut('Coming up', str(len(upcoming_events)),
++                           'View reminders', 'Reminders', 'home_reminders')
++    st.caption('Pending debt includes all unpaid balances, including previous weeks.')
+ 
+     # Fast phone actions: prepare live data and hand it to WhatsApp.
+     home_summary = weekly_summary(current_start, week_end, expenses, splits_by_expense, settlements, transfers, shopping)
+@@ -482,61 +543,62 @@
+     with share2:
+         whatsapp_button('Share weekly balance', home_summary)
+ 
+-    st.subheader('Quick add')
+-    quick_tab1, quick_tab2, quick_tab3 = st.tabs(['Shopping', 'Expense', 'Reminder'])
+-
+-    with quick_tab1:
+-        with st.form('home_add_shopping', clear_on_submit=True):
+-            qa, qb = st.columns([2, 1])
+-            q_item = qa.text_input('Item', placeholder='Milk, rice, washing liquid…', key='home_shopping_item')
+-            q_qty = qb.text_input('Quantity', placeholder='2 packs', key='home_shopping_qty')
+-            if st.form_submit_button('Add to shopping list', type='primary', use_container_width=True):
+-                if not q_item.strip():
+-                    st.error('Enter an item name.')
+-                else:
+-                    db.add_shopping_item(household['id'], q_item, q_qty, None)
+-                    st.success('Added to shopping list.')
+-                    st.rerun()
+-
+-    with quick_tab2:
+-        with st.form('home_add_expense', clear_on_submit=True):
+-            ea, eb = st.columns(2)
+-            q_desc = ea.text_input('What was it?', placeholder='Tesco groceries', key='home_expense_desc')
+-            q_amount = eb.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='home_expense_amount')
+-            ec, ed = st.columns(2)
+-            q_payer = ec.selectbox('Who paid?', [m['name'] for m in members], key='home_expense_payer')
+-            q_date = ed.date_input('Date', value=date.today(), key='home_expense_date')
+-            q_split = st.multiselect('Who should share this cost?', [m['name'] for m in members], default=[m['name'] for m in members], key='home_expense_split')
+-            if st.form_submit_button('Add expense', type='primary', use_container_width=True):
+-                if not q_desc.strip():
+-                    st.error('Enter a description.')
+-                elif not q_split:
+-                    st.error('Choose at least one person.')
+-                else:
+-                    q_pence = to_pence(q_amount)
+-                    q_ids = [member_id_by_name[n] for n in q_split]
+-                    db.add_expense(household['id'], member_id_by_name[q_payer], q_desc, q_pence, q_date, equal_split(q_pence, q_ids))
+-                    st.success('Expense added.')
+-                    st.rerun()
+-
+-    with quick_tab3:
+-        with st.form('home_add_reminder', clear_on_submit=True):
+-            ra, rb = st.columns(2)
+-            q_title = ra.text_input('Reminder / event', placeholder='Bin day, rent, appointment…', key='home_reminder_title')
+-            q_day = rb.date_input('Date', value=date.today(), key='home_reminder_date')
+-            rc, rd = st.columns(2)
+-            q_has_time = rc.checkbox('Add a time', key='home_reminder_has_time')
+-            q_time = rd.time_input('Time', value=time(18, 0), disabled=not q_has_time, key='home_reminder_time')
+-            q_notes = st.text_area('Notes', placeholder='Optional details', key='home_reminder_notes')
+-            if st.form_submit_button('Add reminder', type='primary', use_container_width=True):
+-                if not q_title.strip():
+-                    st.error('Enter a reminder title.')
+-                else:
+-                    db.add_event(household['id'], q_title, q_notes, q_day, q_time if q_has_time else None)
+-                    st.success('Reminder added.')
+-                    st.rerun()
+-
+-    st.subheader('Current outstanding balances')
++    with st.expander('＋ Add shopping, an expense or a reminder', expanded=False):
++        quick_tab1, quick_tab2, quick_tab3 = st.tabs(['Shopping', 'Expense', 'Reminder'])
++
++        with quick_tab1:
++            with st.form('home_add_shopping', clear_on_submit=True):
++                qa, qb = st.columns([2, 1])
++                q_item = qa.text_input('Item', placeholder='Milk, rice, washing liquid…', key='home_shopping_item')
++                q_qty = qb.text_input('Quantity', placeholder='2 packs', key='home_shopping_qty')
++                if st.form_submit_button('Add to shopping list', type='primary', use_container_width=True):
++                    if not q_item.strip():
++                        st.error('Enter an item name.')
++                    else:
++                        db.add_shopping_item(household['id'], q_item, q_qty, None)
++                        st.success('Added to shopping list.')
++                        st.rerun()
++
++        with quick_tab2:
++            with st.form('home_add_expense', clear_on_submit=True):
++                ea, eb = st.columns(2)
++                q_desc = ea.text_input('What was it?', placeholder='Tesco groceries', key='home_expense_desc')
++                q_amount = eb.number_input('Amount (£)', min_value=0.01, step=0.01, format='%.2f', key='home_expense_amount')
++                ec, ed = st.columns(2)
++                q_payer = ec.selectbox('Who paid?', [m['name'] for m in members], key='home_expense_payer')
++                q_date = ed.date_input('Date', value=date.today(), key='home_expense_date')
++                q_split = st.multiselect('Who should share this cost?', [m['name'] for m in members], default=[m['name'] for m in members], key='home_expense_split')
++                if st.form_submit_button('Add expense', type='primary', use_container_width=True):
++                    if not q_desc.strip():
++                        st.error('Enter a description.')
++                    elif not q_split:
++                        st.error('Choose at least one person.')
++                    else:
++                        q_pence = to_pence(q_amount)
++                        q_ids = [member_id_by_name[n] for n in q_split]
++                        db.add_expense(household['id'], member_id_by_name[q_payer], q_desc, q_pence, q_date, equal_split(q_pence, q_ids))
++                        st.success('Expense added.')
++                        st.rerun()
++
++        with quick_tab3:
++            with st.form('home_add_reminder', clear_on_submit=True):
++                ra, rb = st.columns(2)
++                q_title = ra.text_input('Reminder / event', placeholder='Bin day, rent, appointment…', key='home_reminder_title')
++                q_day = rb.date_input('Date', value=date.today(), key='home_reminder_date')
++                rc, rd = st.columns(2)
++                q_has_time = rc.checkbox('Add a time', key='home_reminder_has_time')
++                q_time = rd.time_input('Time', value=time(18, 0), disabled=not q_has_time, key='home_reminder_time')
++                q_notes = st.text_area('Notes', placeholder='Optional details', key='home_reminder_notes')
++                if st.form_submit_button('Add reminder', type='primary', use_container_width=True):
++                    if not q_title.strip():
++                        st.error('Enter a reminder title.')
++                    else:
++                        db.add_event(household['id'], q_title, q_notes, q_day, q_time if q_has_time else None)
++                        st.success('Reminder added.')
++                        st.rerun()
++
++
++    st.subheader('Everyone’s balance')
+     stats = member_week_stats(expenses, splits_by_expense, balances)
+     glance_cols = st.columns(max(1, min(3, len(stats))))
+     for idx, row in enumerate(stats):
+@@ -551,14 +613,15 @@
+                 status = 'Settled'
+                 status_class = 'settled'
+             st.markdown(
+-                f"<div class='card'><div class='card-title'>{row['name']}</div>"
++                f"<div class='card'><div class='card-title'>{escape(str(row['name']))}</div>"
+                 f"<div class='card-sub'>This week: paid <strong>{money(row['paid'])}</strong> | share <strong>{money(row['fair_share'])}</strong></div>"
+                 f"<div class='{status_class}' style='margin-top:.55rem'>{status}</div></div>",
+                 unsafe_allow_html=True,
+             )
+-    render_balance_visual(stats)
++            st.button('View balance →', key=f"home_member_{row['id']}",
++                      on_click=navigate, args=('Balance',), use_container_width=True)
+     if not expenses:
+-        st.caption('No new expenses this week. Any older unpaid balance still remains below until receipt is confirmed.')
++        st.caption('No new expenses this week. Any older unpaid balance remains outstanding until receipt is confirmed.')
+     else:
+         st.caption('Weekly spend resets for reporting only. Outstanding money carries forward until the recipient confirms receipt.')
+ 
+@@ -566,12 +629,13 @@
+     with left:
+         st.subheader('Settle up')
+         if transfers:
+-            for transfer in transfers:
+-                st.markdown(
+-                    f"<div class='card'><div class='card-title'>{member_name[transfer['from_member_id']]} to {member_name[transfer['to_member_id']]}</div>"
+-                    f"<div class='card-sub'>{money(transfer['amount_pence'])} still outstanding</div></div>",
+-                    unsafe_allow_html=True,
+-                )
++            for idx, transfer in enumerate(transfers):
++                sender = member_name[transfer['from_member_id']]
++                receiver = member_name[transfer['to_member_id']]
++                with st.container(key=f'shortcut_transfer_{idx}'):
++                    st.button(f"{sender} owes {receiver} · {money(transfer['amount_pence'])}\n\nReview payment →",
++                              key=f'home_transfer_{idx}', use_container_width=True,
++                              on_click=navigate, args=('Balance', (transfer['from_member_id'], transfer['to_member_id'])))
+         else:
+             st.success('Everyone is fully settled.')
+ 
+@@ -592,20 +656,21 @@
+                 if event.get('event_time'):
+                     when += f" | {str(event['event_time'])[:5]}"
+                 notes = event.get('description') or ''
+-                note_html = f"<div class='card-sub'>{notes}</div>" if notes else ''
++                note_html = f"<div class='card-sub'>{escape(str(notes))}</div>" if notes else ''
+                 st.markdown(
+-                    f"<div class='card'><div class='card-title'> {event['title']}</div><div class='card-sub'>{when}</div>{note_html}</div>",
++                    f"<div class='card'><div class='card-title'> {escape(str(event['title']))}</div><div class='card-sub'>{when}</div>{note_html}</div>",
+                     unsafe_allow_html=True,
+                 )
+         else:
+             st.caption('No reminders in the next 14 days.')
+ 
+ 
++
+ # ---------- SHOPPING ----------
+ elif page == 'Shopping':
+-    st.title(' Shopping')
++    st.title('Shopping')
+     st.caption('Open items carry forward until someone explicitly marks them bought. A new week never clears the list.')
+-    st.info('Type into the fields below, then press **Add to list**. Your data is saved to Supabase.')
++
+     shopping = db.list_shopping(household['id'])
+ 
+     with st.form('add_shopping', clear_on_submit=True):
+@@ -635,7 +700,7 @@
+             c1.markdown(f"### {item['item_name']}{qty}")
+             c1.caption('Still needed')
+             b1, b2 = c2.columns(2)
+-            if b1.button('Bought ', key=f"bought_{item['id']}", type='primary', use_container_width=True):
++            if b1.button('Bought ✓', key=f"bought_{item['id']}", type='primary', use_container_width=True):
+                 db.mark_shopping_bought(item['id'], None)
+                 st.rerun()
+             if b2.button('Delete', key=f"delete_shop_{item['id']}", use_container_width=True):
+@@ -656,9 +721,9 @@
+ 
+ # ---------- EXPENSES ----------
+ elif page == 'Expenses':
+-    st.title(' Expenses')
++    st.title('Expenses')
+     st.caption('Record who paid and who benefited. District 11 works out the balance automatically.')
+-    st.info('Enter the purchase, amount, payer and who shared it. Press **Add expense** to save it.')
++
+ 
+     with st.form('add_expense', clear_on_submit=True):
+         a, b = st.columns(2)
+@@ -723,6 +788,42 @@
+     c2.metric('Receipts confirmed this week', money(sum(int(s['amount_pence']) for s in settlements)))
+     c3.metric('Outstanding transfers', str(len(transfers)))
+ 
++    st.subheader('Settle up')
++    st.caption('No automatic settlement or weekly reset. Record a payment only after the recipient has actually received it. Partial payments are supported.')
++    if not transfers:
++        st.success('All balances are zero. No payments are outstanding.')
++    focused_transfer = st.session_state.get('focused_transfer')
++    transfers = sorted(transfers, key=lambda t: (t['from_member_id'], t['to_member_id']) != focused_transfer)
++    for idx, transfer in enumerate(transfers):
++        sender = member_by_id[transfer['from_member_id']]
++        receiver = member_by_id[transfer['to_member_id']]
++        outstanding = int(transfer['amount_pence'])
++        with st.container(border=True):
++            if focused_transfer == (sender['id'], receiver['id']):
++                st.caption('SELECTED FROM HOME')
++            st.markdown(f"**{sender['name']} owes {receiver['name']}**")
++            st.write(f"Outstanding: {money(outstanding)}")
++            message = (f"District 11\n{sender['name']} owes {receiver['name']} {money(outstanding)}. "
++                       "This amount remains due until a payment is manually confirmed.")
++            whatsapp_button('Share balance', message, phone=sender.get('phone_number'))
++            with st.form(f"manual_payment_{sender['id']}_{receiver['id']}"):
++                payment = st.number_input('Amount received (£)', min_value=0.01,
++                                          max_value=outstanding / 100, value=outstanding / 100,
++                                          step=0.01, format='%.2f',
++                                          key=f"payment_amount_{sender['id']}_{receiver['id']}_{outstanding}")
++                confirmed = st.checkbox(f"{receiver['name']} confirms this payment was received", key=f"payment_confirm_{sender['id']}_{receiver['id']}_{outstanding}")
++                submitted = st.form_submit_button('Record received payment', type='primary')
++                if submitted:
++                    amount_pence = to_pence(payment)
++                    if not confirmed:
++                        st.error('Confirm that the recipient has received the money first.')
++                    elif not 0 < amount_pence <= outstanding:
++                        st.error('The payment must be greater than zero and no more than the outstanding amount.')
++                    else:
++                        db.mark_settlement_paid(household['id'], sender['id'], receiver['id'], amount_pence, selected_start)
++                        st.rerun()
++
++    st.divider()
+     stats = member_week_stats(expenses, splits_by_expense, balances)
+     st.subheader('Outstanding balance')
+     render_balance_visual(stats)
+@@ -740,7 +841,7 @@
+                 status = 'Settled'
+                 status_class = 'settled'
+             st.markdown(
+-                f"<div class='card'><div class='card-title'>{row['name']}</div>"
++                f"<div class='card'><div class='card-title'>{escape(str(row['name']))}</div>"
+                 f"<div class='card-sub'>Paid <strong>{money(row['paid'])}</strong></div>"
+                 f"<div class='card-sub'>Fair share <strong>{money(row['fair_share'])}</strong></div>"
+                 f"<div class='{status_class}' style='margin-top:.6rem'>{status}</div></div>",
+@@ -750,37 +851,6 @@
+ 
+     summary = weekly_summary(selected_start, selected_end, expenses, splits_by_expense, settlements, transfers, shopping)
+     whatsapp_button('Share activity + outstanding balance', summary)
+-
+-    st.subheader('Manual settlement')
+-    st.caption('No automatic settlement or weekly reset. Record a payment only after the recipient has actually received it. Partial payments are supported.')
+-    if not transfers:
+-        st.success('All balances are zero. No payments are outstanding.')
+-    for idx, transfer in enumerate(transfers):
+-        sender = member_by_id[transfer['from_member_id']]
+-        receiver = member_by_id[transfer['to_member_id']]
+-        outstanding = int(transfer['amount_pence'])
+-        with st.container(border=True):
+-            st.markdown(f"**{sender['name']} owes {receiver['name']}**")
+-            st.write(f"Outstanding: {money(outstanding)}")
+-            message = (f"District 11\n{sender['name']} owes {receiver['name']} {money(outstanding)}. "
+-                       "This amount remains due until a payment is manually confirmed.")
+-            whatsapp_button('Share balance', message, phone=sender.get('phone_number'))
+-            with st.form(f"manual_payment_{sender['id']}_{receiver['id']}"):
+-                payment = st.number_input('Amount received (£)', min_value=0.01,
+-                                          max_value=outstanding / 100, value=outstanding / 100,
+-                                          step=0.01, format='%.2f',
+-                                          key=f"payment_amount_{idx}")
+-                confirmed = st.checkbox(f"{receiver['name']} confirms this payment was received", key=f"payment_confirm_{idx}")
+-                submitted = st.form_submit_button('Record received payment', type='primary')
+-                if submitted:
+-                    amount_pence = to_pence(payment)
+-                    if not confirmed:
+-                        st.error('Confirm that the recipient has received the money first.')
+-                    elif not 0 < amount_pence <= outstanding:
+-                        st.error('The payment must be greater than zero and no more than the outstanding amount.')
+-                    else:
+-                        db.mark_settlement_paid(household['id'], sender['id'], receiver['id'], amount_pence, selected_start)
+-                        st.rerun()
+ 
+     st.subheader('Payment history')
+     st.caption('Every manually confirmed payment is kept, including payments from previous weeks.')
+@@ -806,7 +876,7 @@
+ elif page == 'Reminders':
+     st.title('Reminders and calendar')
+     st.caption('Add reminders, chores and house events here. They appear on the Home dashboard too.')
+-    st.info('Fill in the reminder below and press **Add to calendar**. Time is optional.')
++
+ 
+     with st.form('add_event', clear_on_submit=True):
+         a, b = st.columns(2)
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,2 +1,3 @@
+-streamlit>=1.39,<2
++streamlit>=1.49,<2
+ supabase>=2.7,<3
++
