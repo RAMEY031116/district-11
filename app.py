@@ -30,7 +30,7 @@ st.markdown(
     :root {
       color-scheme: dark;
       --bg:#090d14; --bg2:#0d131d; --panel:#111827; --panel2:#151f2e;
-      --ink:#f8fafc; --muted:#94a3b8; --line:#253246; --accent:#60a5fa;
+      --ink:#f8fafc; --muted:#94a3b8; --line:#253246; --accent:#f472b6;
       --green:#34d399; --red:#fb7185; --amber:#fbbf24;
     }
 
@@ -258,6 +258,30 @@ st.markdown(
       .st-key-app_navigation button p { font-size:.68rem; line-height:1.2; }
       .st-key-app_navigation button [data-testid="stIconMaterial"] { font-size:20px; }
     }
+
+    /* A restrained rose accent on the existing dark surfaces. */
+    .brand img { outline:1px solid #f472b6; outline-offset:2px; }
+    .brand-number { color:#f9a8d4; }
+    .stButton > button:hover, .stLinkButton > a:hover,
+    [data-testid="stDownloadButton"] button:hover {
+      border-color:#f472b6 !important; background:#302034 !important;
+    }
+    button[kind="primary"] {
+      background:#9d174d !important; border-color:#ec4899 !important;
+      color:#fff !important;
+    }
+    button[kind="primary"]:hover { background:#be185d !important; }
+    button:focus-visible, a:focus-visible {
+      outline-color:#f9a8d4 !important;
+    }
+    [class*="st-key-shortcut_"] button:hover {
+      background:#2c2034 !important; border-color:#f472b6 !important;
+    }
+    .st-key-shortcut_home_debt button {
+      border-color:#a34b7a !important;
+      background:linear-gradient(145deg,#2b1c30,#171c2c) !important;
+    }
+    .st-key-app_navigation { border-color:#553047 !important; }
     </style>
     ''',
     unsafe_allow_html=True,
