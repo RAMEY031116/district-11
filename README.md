@@ -82,11 +82,19 @@ District 11 helps housemates keep everyday life organised in one place. Add thin
    streamlit run app.py
    ```
 
-The application reads and writes household records in Supabase. Its database code currently looks for a household named `District 11` and ensures its three configured members exist. To repurpose it for a different household, review that setup in `db.py`.
+The application reads and writes household records in Supabase. Members are managed in the database rather than hard-coded in this public repository. Existing member IDs and financial records are retained; this project does not include the database schema or a member-management screen. Configure the household and its members in your own protected Supabase project before first use.
 
 ## Mobile home-screen launcher
 
 The optional launcher lives in `docs/`. Configure GitHub Pages to deploy **main /docs**, then follow [the home-screen installation guide](docs/SETUP.md). This launcher embeds the existing public Streamlit deployment; it does not replace the Streamlit server or Supabase database.
+
+## Privacy and security
+
+This repository is public, so **do not commit real residents' names, phone numbers, email addresses, Supabase keys or household financial records**. Member information belongs in the protected database, not in source files or README examples.
+
+**Removing names from GitHub code is not access control.** This app fetches member details and expense data from Supabase and displays names in the Streamlit interface, reports and WhatsApp sharing actions. If the deployed app is public, visitors may still see this information. Before using it with real household data, protect access to the deployed Streamlit app and configure suitable Supabase Row Level Security / database permissions. Do not expose privileged Supabase credentials to visitors or commit them to version control.
+
+Previously committed names may remain in Git history even after the current files are cleaned. If exposure is a concern, review repository history and rotate any leaked credentials.
 
 ## Tests
 
