@@ -210,13 +210,17 @@ st.markdown(
       .hero-title { font-size:1.8rem; }
       .brand-label { display:none; }
       [data-testid="stColumn"] { min-width:100% !important; flex:1 1 100% !important; }
-      .block-container { padding-bottom:calc(7rem + env(safe-area-inset-bottom)); }
+      /* Community Cloud adds account/badge controls outside the app document.
+         Keep navigation above their bottom-right overlay; app CSS cannot hide it. */
+      .block-container { padding-bottom:calc(11rem + env(safe-area-inset-bottom, 0px)); }
       .st-key-app_navigation {
         box-sizing:border-box;
-        position:fixed; bottom:0; left:0; right:0; z-index:999;
-        background:#0d1726; border-top:1px solid #30435c;
-        padding:10px 8px calc(10px + env(safe-area-inset-bottom));
-        box-shadow:0 -8px 24px rgba(0,0,0,.25);
+        position:fixed;
+        bottom:calc(64px + env(safe-area-inset-bottom, 0px));
+        left:8px; right:8px; width:auto; z-index:999;
+        background:#0d1726; border:1px solid #30435c; border-radius:16px;
+        padding:8px;
+        box-shadow:0 8px 24px rgba(0,0,0,.35);
       }
       .st-key-app_navigation [data-testid="stHorizontalBlock"] { flex-wrap:nowrap !important; gap:4px !important; }
       .st-key-app_navigation [data-testid="stColumn"] {
