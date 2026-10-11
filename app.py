@@ -512,13 +512,6 @@ if page == 'Home':
     week_end, expenses, splits_by_expense, settlements, balances, transfers = current_week_data(current_start)
     upcoming_events = db.list_events(household['id'], date.today(), date.today() + timedelta(days=14))
 
-    st.markdown(
-        '''<div class="hero"><div class="hero-kicker">Your shared home</div>
-        <div class="hero-title">A little less life admin.</div>
-        <div class="hero-sub">See what needs doing, settle up and keep the household moving.</div></div>''',
-        unsafe_allow_html=True,
-    )
-
     st.caption(f'THIS WEEK · {current_start:%d %b} – {week_end:%d %b}')
     c1, c2, c3, c4 = st.columns(4)
     with c1:
