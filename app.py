@@ -353,36 +353,33 @@ def parse_db_date(value) -> date:
     return date.fromisoformat(str(value)[:10])
 
 
+_ledger_snapshot = None
+
+
+def all_ledger_data():
+    """Reuse one complete ledger during a page run, including exports and history."""
+    global _ledger_snapshot
+    if _ledger_snapshot is None:
+        expenses = db.list_all_expenses(household['id'])
+        splits = db.list_splits([e['id'] for e in expenses])
+        payments = [p for p in db.list_settlements(household['id']) if p.get('status') == 'paid']
+        _ledger_snapshot = expenses, splits, payments
+    return _ledger_snapshot
+
+
 def current_week_data(selected_start: date):
-    """Return weekly activity plus the household's cumulative outstanding balance.
-
-    A week boundary is only for reporting. Unpaid debt must carry forward until
-    the recipient explicitly confirms that the money was received.
-    """
     selected_end = selected_start + timedelta(days=6)
-
-    # Weekly activity: used for the selected week's spend/history only.
-    expenses = db.list_expenses(household['id'], selected_start, selected_end)
-    weekly_splits = db.list_splits([e['id'] for e in expenses])
-    splits_by_expense = defaultdict(list)
-    for row in weekly_splits:
-        splits_by_expense[row['expense_id']].append(row)
-    settlements = [s for s in db.list_settlements(household['id'], selected_start) if s.get('status') == 'paid']
-
-    # Outstanding ledger: ALL expenses minus ALL confirmed receipts. This is
-    # deliberately not filtered by week, so Monday never resets money owed.
-    all_expenses = db.list_all_expenses(household['id'])
-    all_splits = db.list_splits([e['id'] for e in all_expenses])
-    all_splits_by_expense = defaultdict(list)
-    for row in all_splits:
-        all_splits_by_expense[row['expense_id']].append(row)
-    all_confirmed_settlements = [
-        s for s in db.list_settlements(household['id']) if s.get('status') == 'paid'
-    ]
-    balances = calculate_balances(members, all_expenses, all_splits_by_expense, all_confirmed_settlements)
-    transfers = minimize_transfers(balances)
-
-    return selected_end, expenses, splits_by_expense, settlements, balances, transfers
+    all_expenses, all_splits, all_payments = all_ledger_data()
+    expenses = [e for e in all_expenses if selected_start <= parse_db_date(e['expense_date']) <= selected_end]
+    grouped = defaultdict(list)
+    for split in all_splits:
+        grouped[split['expense_id']].append(split)
+    weekly_ids = {e['id'] for e in expenses}
+    weekly_grouped = {eid: rows for eid, rows in grouped.items() if eid in weekly_ids}
+    payments = [p for p in all_payments
+                if selected_start <= parse_db_date(p.get('paid_at') or p.get('created_at')) <= selected_end]
+    balances = calculate_balances(members, all_expenses, grouped, all_payments)
+    return selected_end, expenses, weekly_grouped, payments, balances, minimize_transfers(balances)
 
 
 def shopping_text(shopping: list[dict]) -> str:
@@ -937,9 +934,7 @@ elif page == 'Balance':
     c2.metric('Receipts confirmed this week', money(sum(int(s['amount_pence']) for s in settlements)))
     c3.metric('Outstanding transfers', str(len(transfers)))
 
-    all_expenses = db.list_all_expenses(household['id'])
-    all_splits = db.list_splits([e['id'] for e in all_expenses])
-    all_payments = db.list_settlements(household['id'])
+    all_expenses, all_splits, all_payments = all_ledger_data()
 
     def show_breakdown(mid):
         from ledger import member_ledger
@@ -1054,7 +1049,7 @@ elif page == 'Balance':
 
     st.subheader('Payment history')
     st.caption('Every manually confirmed payment is kept, including payments from previous weeks.')
-    payment_history = db.list_settlements(household['id'])
+    payment_history = all_payments
     if not payment_history:
         st.caption('No payments have been recorded yet.')
     else:
@@ -1120,6 +1115,7 @@ elif page == 'Reminders':
             if c2.button('Delete', key=f"del_event_{event['id']}", use_container_width=True):
                 db.delete_event(event['id'])
                 st.rerun()
+
 
 
 

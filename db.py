@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from typing import Iterable
+from functools import wraps
 
 import streamlit as st
 from supabase import Client, create_client
@@ -23,6 +24,32 @@ def _data(response):
     return response.data or []
 
 
+# Short read cache avoids network requests on every Streamlit widget rerun.
+# Each successful write clears these reads, so the person saving sees fresh data.
+_cached_reads = []
+
+
+def cached_read(ttl=15):
+    def decorate(function):
+        cached = st.cache_data(ttl=ttl, max_entries=64, show_spinner=False)(function)
+        _cached_reads.append(cached)
+        return cached
+    return decorate
+
+
+def refresh_after_write(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        finally:
+            # Invalidate even if a multi-step write only partially completed.
+            for read in _cached_reads:
+                read.clear()
+    return wrapped
+
+
+@cached_read(ttl=300)
 def get_or_create_household(name: str = 'District 11') -> dict:
     client = get_client()
     existing = _data(client.table('households').select('*').eq('name', name).limit(1).execute())
@@ -37,6 +64,7 @@ def get_or_create_household(name: str = 'District 11') -> dict:
     return household
 
 
+@cached_read()
 def list_members(household_id: str) -> list[dict]:
     return _data(
         get_client().table('members')
@@ -47,6 +75,7 @@ def list_members(household_id: str) -> list[dict]:
     )
 
 
+@refresh_after_write
 def add_member(household_id: str, name: str, phone_number: str | None = None):
     payload = {'household_id': household_id, 'name': name.strip()}
     if phone_number:
@@ -54,11 +83,13 @@ def add_member(household_id: str, name: str, phone_number: str | None = None):
     return _data(get_client().table('members').insert(payload).execute())[0]
 
 
+@refresh_after_write
 def update_member(member_id: str, **fields):
     clean = {k: v for k, v in fields.items() if v is not None}
     return _data(get_client().table('members').update(clean).eq('id', member_id).execute())
 
 
+@cached_read()
 def list_shopping(household_id: str) -> list[dict]:
     return _data(
         get_client().table('shopping_items')
@@ -70,6 +101,7 @@ def list_shopping(household_id: str) -> list[dict]:
     )
 
 
+@refresh_after_write
 def add_shopping_item(household_id: str, item_name: str, quantity: str, added_by_member_id: str | None):
     payload = {
         'household_id': household_id,
@@ -81,6 +113,7 @@ def add_shopping_item(household_id: str, item_name: str, quantity: str, added_by
     return _data(get_client().table('shopping_items').insert(payload).execute())[0]
 
 
+@refresh_after_write
 def mark_shopping_bought(item_id: str, member_id: str | None = None):
     return _data(
         get_client().table('shopping_items')
@@ -94,6 +127,7 @@ def mark_shopping_bought(item_id: str, member_id: str | None = None):
     )
 
 
+@refresh_after_write
 def reopen_shopping_item(item_id: str):
     return _data(
         get_client().table('shopping_items')
@@ -103,10 +137,12 @@ def reopen_shopping_item(item_id: str):
     )
 
 
+@refresh_after_write
 def delete_shopping_item(item_id: str):
     get_client().table('shopping_items').delete().eq('id', item_id).execute()
 
 
+@cached_read()
 def list_expenses(household_id: str, start: date, end: date) -> list[dict]:
     return _data(
         get_client().table('expenses')
@@ -120,6 +156,7 @@ def list_expenses(household_id: str, start: date, end: date) -> list[dict]:
     )
 
 
+@cached_read()
 def list_all_expenses(household_id: str, limit: int | None = None) -> list[dict]:
     """Fetch the entire expense ledger using pages, not just a recent subset."""
     rows = []
@@ -141,6 +178,7 @@ def list_all_expenses(household_id: str, limit: int | None = None) -> list[dict]
         offset += page_size
 
 
+@cached_read()
 def list_splits(expense_ids: Iterable[str]) -> list[dict]:
     ids = list(expense_ids)
     if not ids:
@@ -153,6 +191,7 @@ def list_splits(expense_ids: Iterable[str]) -> list[dict]:
     )
 
 
+@refresh_after_write
 def add_expense(
     household_id: str,
     paid_by_member_id: str,
@@ -179,11 +218,13 @@ def add_expense(
     return expense
 
 
+@refresh_after_write
 def delete_expense(expense_id: str):
     # expense_splits cascade on delete.
     get_client().table('expenses').delete().eq('id', expense_id).execute()
 
 
+@cached_read()
 def list_settlements(household_id: str, week_start: date | None = None) -> list[dict]:
     """Read all confirmed payments, optionally filtering a display-only week."""
     rows = []
@@ -206,6 +247,7 @@ def list_settlements(household_id: str, week_start: date | None = None) -> list[
             if week_start <= date.fromisoformat(str(row.get('paid_at') or row.get('created_at'))[:10]) <= week_end]
 
 
+@refresh_after_write
 def mark_settlement_paid(
     household_id: str,
     from_member_id: str,
@@ -227,6 +269,7 @@ def mark_settlement_paid(
     return _data(get_client().table('settlements').insert(payload).execute())[0]
 
 
+@cached_read()
 def list_events(household_id: str, start: date | None = None, end: date | None = None) -> list[dict]:
     query = get_client().table('household_events').select('*').eq('household_id', household_id)
     if start:
@@ -236,6 +279,7 @@ def list_events(household_id: str, start: date | None = None, end: date | None =
     return _data(query.order('event_date').order('event_time').execute())
 
 
+@refresh_after_write
 def add_event(household_id: str, title: str, description: str, event_date: date, event_time):
     payload = {
         'household_id': household_id,
@@ -247,10 +291,12 @@ def add_event(household_id: str, title: str, description: str, event_date: date,
     return _data(get_client().table('household_events').insert(payload).execute())[0]
 
 
+@refresh_after_write
 def delete_event(event_id: str):
     get_client().table('household_events').delete().eq('id', event_id).execute()
 
 
+@cached_read()
 def list_bills(household_id: str) -> list[dict]:
     return _data(
         get_client().table('recurring_bills')
@@ -261,6 +307,7 @@ def list_bills(household_id: str) -> list[dict]:
     )
 
 
+@refresh_after_write
 def add_bill(household_id: str, name: str, amount_pence: int, due_day: int, paid_by_member_id: str | None):
     payload = {
         'household_id': household_id,
@@ -272,5 +319,7 @@ def add_bill(household_id: str, name: str, amount_pence: int, due_day: int, paid
     return _data(get_client().table('recurring_bills').insert(payload).execute())[0]
 
 
+@refresh_after_write
 def delete_bill(bill_id: str):
     get_client().table('recurring_bills').delete().eq('id', bill_id).execute()
+
