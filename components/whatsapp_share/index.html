@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+body{margin:0;font-family:system-ui,sans-serif;color:#cbd5e1} .row{display:flex;gap:8px}button,a{font:inherit;font-weight:750;min-height:46px;border-radius:12px;padding:10px 12px;box-sizing:border-box;cursor:pointer}#share{flex:1;background:#25d366;color:#07130b;border:1px solid #39df79}#copy{background:#162235;color:#fff;border:1px solid #475569;font-size:13px}#message{font-size:12px;margin:6px 0}#manual{color:#86efac}textarea{width:100%;box-sizing:border-box;background:#0d1726;color:white;border:1px solid #475569;border-radius:8px;min-height:100px;margin-top:8px}[hidden]{display:none!important}
+</style></head><body><div class="row"><button id="share"></button><button id="copy">Copy message</button></div><p id="message" role="status" hidden></p><a id="manual" target="_blank" rel="noopener noreferrer" hidden>Open WhatsApp with message</a><textarea id="text" readonly aria-label="Message to share" hidden></textarea><script>
+let args={};
+const send=(type,data={})=>window.parent.postMessage({isStreamlitMessage:true,type,...data},'*');
+const status=document.getElementById('message'),manual=document.getElementById('manual'),text=document.getElementById('text');
+const mobile=()=>/Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+function resize(){send('streamlit:setFrameHeight',{height:document.body.scrollHeight+2});}
+function links(){const query=new URLSearchParams({text:args.text});if(args.phone)query.set('phone',args.phone);return {web:'https://api.whatsapp.com/send?'+query.toString(),app:'whatsapp://send?'+query.toString()};}
+function show(message){status.textContent=message;status.hidden=false;resize();}
+window.addEventListener('message',event=>{if(event.source!==window.parent||event.data.type!=='streamlit:render')return;args=event.data.args;document.getElementById('share').textContent=args.label;text.value=args.text;manual.href=mobile()?links().app:links().web;resize();});
+document.getElementById('share').addEventListener('click',async()=>{
+  if(!args.text)return;
+  const policy=document.permissionsPolicy||document.featurePolicy;
+  const allowed=!policy||policy.allowsFeature('web-share');
+  if(!args.phone&&mobile()&&navigator.share&&allowed){
+    try{await navigator.share({text:args.text});return;}
+    catch(error){if(error.name==='AbortError')return;manual.hidden=false;show('Tap “Open WhatsApp with message”, or copy the message below.');return;}
+  }
+  if(mobile()){window.location.href=links().app;manual.hidden=false;show('If WhatsApp does not show recipients, use Copy message and paste into your chat.');}
+  else window.open(links().web,'_blank','noopener,noreferrer');
+});
+document.getElementById('copy').addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(args.text);show('Copied. Open your WhatsApp chat and paste.');}
+  catch(error){text.hidden=false;text.focus();text.select();try{if(document.execCommand('copy'))show('Copied. Open your WhatsApp chat and paste.');else show('Select and copy the message below.');}catch(e){show('Select and copy the message below.');}resize();}
+});
+send('streamlit:componentReady',{apiVersion:1});resize();
+</script></body></html>
