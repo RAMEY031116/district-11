@@ -322,19 +322,17 @@ def direct_whatsapp_url(phone: str | None, text: str) -> str | None:
     return f"https://wa.me/{digits}?text={quote(text)}"
 
 
-_whatsapp_share = components.declare_component(
-    'district11_whatsapp_share', path=str(Path(__file__).parent / 'components' / 'whatsapp_share'),
-)
-_share_button_count = 0
-
-
 def whatsapp_button(label: str, text: str, *, phone: str | None = None) -> None:
-    """Use the device share sheet and offer a copy fallback."""
-    global _share_button_count
-    _share_button_count += 1
+    """Native controls keep sharing independent of iframe/component loading."""
     digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
-    _whatsapp_share(label=label, text=text, phone=digits,
-                    key=f'whatsapp_share_{_share_button_count}', default=None)
+    encoded = quote(text, safe='')
+    url = f"https://api.whatsapp.com/send?text={encoded}"
+    if digits:
+        url += f"&phone={digits}"
+    st.link_button(label, url, use_container_width=True)
+    with st.expander('Copy message if WhatsApp does not open the recipient list'):
+        st.caption('Use the copy icon, then paste into your WhatsApp chat or group.')
+        st.code(text, language=None, wrap_lines=True)
 
 
 
