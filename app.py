@@ -883,11 +883,24 @@ elif page == 'Expenses':
                 )
                 st.rerun()
 
-    start = st.date_input('Show week starting', value=current_start, key='expenses_week')
-    end, expenses, splits_by_expense, _, _, _ = current_week_data(start)
-    st.subheader(f'{start:%d %b} - {end:%d %b}')
+    st.subheader('Expense history')
+    search = st.text_input('Search all expenses', placeholder='Purchase description or person’s name', key='expense_search')
+    person = st.selectbox('Person', [None] + [m['id'] for m in members],
+                          format_func=lambda mid: 'Everyone' if mid is None else member_name[mid], key='expense_person_filter')
+    expenses = db.list_all_expenses(household['id'])
+    splits_by_expense = defaultdict(list)
+    for split in db.list_splits([e['id'] for e in expenses]):
+        splits_by_expense[split['expense_id']].append(split)
+    filtered = []
+    for expense in expenses:
+        involved = {expense['paid_by_member_id']} | {x['member_id'] for x in splits_by_expense[expense['id']]}
+        haystack = ' '.join([str(expense['description'])] + [member_name.get(mid, '') for mid in involved]).casefold()
+        if (person is None or person in involved) and (not search.strip() or search.strip().casefold() in haystack):
+            filtered.append(expense)
+    expenses = sorted(filtered, key=lambda e: str(e['expense_date']), reverse=True)
+    st.caption(f"{len(expenses)} matching expenses · Total purchase amounts: {money(sum(int(e['amount_pence']) for e in expenses))}")
     if not expenses:
-        st.info('No expenses in this week.')
+        st.info('No matching expenses.')
     for expense in expenses:
         split_names = ', '.join(member_name.get(row['member_id'], 'Unknown') for row in splits_by_expense.get(expense['id'], []))
         with st.container(border=True):
@@ -896,8 +909,18 @@ elif page == 'Expenses':
             c1.caption(f"{member_name.get(expense['paid_by_member_id'], 'Unknown')} paid | split with {split_names} | {expense['expense_date']}")
             c2.markdown(f"### {money(expense['amount_pence'])}")
             if c3.button('Delete', key=f"del_exp_{expense['id']}", use_container_width=True):
-                db.delete_expense(expense['id'])
+                st.session_state['pending_expense_delete'] = expense['id']
                 st.rerun()
+            if st.session_state.get('pending_expense_delete') == expense['id']:
+                st.warning(f"Delete {expense['description']} ({money(expense['amount_pence'])})? This changes everyone’s balances.")
+                confirm, cancel = st.columns(2)
+                if confirm.button('Confirm delete', key=f"confirm_del_exp_{expense['id']}", type='primary', use_container_width=True):
+                    db.delete_expense(expense['id'])
+                    st.session_state.pop('pending_expense_delete', None)
+                    st.rerun()
+                if cancel.button('Keep expense', key=f"cancel_del_exp_{expense['id']}", use_container_width=True):
+                    st.session_state.pop('pending_expense_delete', None)
+                    st.rerun()
 
 
 # ---------- BALANCE ----------
@@ -914,16 +937,47 @@ elif page == 'Balance':
     c2.metric('Receipts confirmed this week', money(sum(int(s['amount_pence']) for s in settlements)))
     c3.metric('Outstanding transfers', str(len(transfers)))
 
+    all_expenses = db.list_all_expenses(household['id'])
+    all_splits = db.list_splits([e['id'] for e in all_expenses])
+    all_payments = db.list_settlements(household['id'])
+
+    def show_breakdown(mid):
+        from ledger import member_ledger
+        rows = member_ledger(mid, all_expenses, all_splits, all_payments, member_name)
+        final = sum(row['change_pence'] for row in rows)
+        status = 'owed' if final > 0 else 'owes' if final < 0 else 'settled'
+        st.markdown(f"**{member_name[mid]} · {status} {money(abs(final))}**")
+        st.caption('Positive = money to receive; negative = money to pay. Confirmed payments reduce the balance.')
+        if rows:
+            st.dataframe([{'Date': r['date'], 'Activity': r['description'], 'Details': r['detail'],
+                           'Credit for paying': money(r['credit_pence']), 'Your share': money(r['share_pence']),
+                           'Balance change': money(r['change_pence']), 'Running balance': money(r['balance_pence'])}
+                          for r in rows], hide_index=True, use_container_width=True)
+        else:
+            st.info('No expenses or confirmed payments for this person.')
+        st.caption('Credit uses the total rounded shares, so the breakdown matches the app’s penny-rounding calculation.')
+
+    with st.expander('Why this balance? · All-time breakdown'):
+        if members:
+            preferred = st.session_state.get('home_member_id')
+            ids = [m['id'] for m in members]
+            breakdown_member = st.selectbox('Whose balance?', ids, index=ids.index(preferred) if preferred in ids else 0,
+                                             format_func=lambda mid: member_name[mid], key='breakdown_member')
+            show_breakdown(breakdown_member)
+
     with st.expander('Download statement · PDF or CSV'):
-        st.caption('Full household statement across all weeks, with expenses, confirmed payments, outstanding balances and totals.')
+        statement_options = [None] + [m['id'] for m in members]
+        preferred = st.session_state.get('home_member_id')
+        statement_member = st.selectbox('Statement for', statement_options,
+            index=statement_options.index(preferred) if preferred in statement_options else 0,
+            format_func=lambda mid: 'Whole household' if mid is None else member_name[mid], key='statement_member')
+        st.caption('All recorded dates. Personal statements include purchases and payments involving that person.')
         if st.button('Prepare full statement', key='prepare_statement', use_container_width=True):
             from statements import build_statement
             with st.spinner('Preparing your statement...'):
-                statement_expenses = db.list_all_expenses(household['id'])
-                statement_splits = db.list_splits([e['id'] for e in statement_expenses])
-                statement_payments = db.list_settlements(household['id'])
-                pdf_bytes, csv_bytes = build_statement(members, statement_expenses, statement_splits, statement_payments)
-            filename = f'district-11-statement-{date.today().isoformat()}'
+                pdf_bytes, csv_bytes = build_statement(members, all_expenses, all_splits, all_payments, member_id=statement_member)
+            scope = 'household' if statement_member is None else 'personal'
+            filename = f'district-11-{scope}-statement-{date.today().isoformat()}'
             pdf_col, csv_col = st.columns(2)
             pdf_col.download_button('Download PDF', pdf_bytes, file_name=filename + '.pdf',
                                     mime='application/pdf', on_click='ignore', use_container_width=True)
@@ -945,6 +999,10 @@ elif page == 'Balance':
                 st.caption('SELECTED FROM HOME')
             st.markdown(f"**{sender['name']} owes {receiver['name']}**")
             st.write(f"Outstanding: {money(outstanding)}")
+            with st.expander('See why this payment is suggested'):
+                st.caption('Suggested payments settle the household’s net balances. They can combine several purchases and are not a direct invoice between these two people.')
+                show_breakdown(sender['id'])
+                show_breakdown(receiver['id'])
             message = (f"District 11\n{sender['name']} owes {receiver['name']} {money(outstanding)}. "
                        "This amount remains due until a payment is manually confirmed.")
             whatsapp_button('Share balance', message, phone=sender.get('phone_number'))
@@ -1062,5 +1120,6 @@ elif page == 'Reminders':
             if c2.button('Delete', key=f"del_event_{event['id']}", use_container_width=True):
                 db.delete_event(event['id'])
                 st.rerun()
+
 
 
