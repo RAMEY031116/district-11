@@ -323,17 +323,28 @@ def direct_whatsapp_url(phone: str | None, text: str) -> str | None:
 
 
 def whatsapp_button(label: str, text: str, *, phone: str | None = None) -> None:
-    """Native controls keep sharing independent of iframe/component loading."""
-    digits = ''.join(ch for ch in (phone or '') if ch.isdigit())
-    encoded = quote(text, safe='')
-    url = f"https://api.whatsapp.com/send?text={encoded}"
-    if digits:
-        url += f"&phone={digits}"
-    st.link_button(label, url, use_container_width=True)
-    with st.expander('Copy message if WhatsApp does not open the recipient list'):
-        st.caption('Use the copy icon, then paste into your WhatsApp chat or group.')
-        st.code(text, language=None, wrap_lines=True)
-
+    """Render a clean WhatsApp-style share button with an inline icon."""
+    url = direct_whatsapp_url(phone, text) if phone else whatsapp_share_url(text)
+    if not url:
+        url = whatsapp_share_url(text)
+    safe_url = escape(url, quote=True)
+    safe_label = escape(label)
+    st.markdown(
+        f"""
+        <a href="{safe_url}" target="_blank" rel="noopener noreferrer"
+           style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+                  min-height:46px;box-sizing:border-box;border-radius:12px;padding:10px 16px;
+                  background:#25D366;color:#07130b;text-decoration:none;font-weight:850;
+                  border:1px solid #39df79;box-shadow:0 8px 22px rgba(37,211,102,.14);">
+          <svg aria-hidden="true" width="21" height="21" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" fill="white"/>
+            <path d="M8.4 7.2c.25-.55.52-.56.77-.57h.65c.2 0 .42.08.52.34l.79 1.92c.09.22.05.42-.07.61l-.47.65c-.13.17-.27.32-.12.58.15.26.67 1.08 1.46 1.75 1 .87 1.84 1.14 2.1 1.27.26.13.41.11.57-.07l.85-.99c.2-.23.4-.19.67-.09l1.73.82c.27.13.45.19.52.3.07.11.07.63-.15 1.24-.22.61-1.28 1.17-1.76 1.24-.45.07-1.02.1-1.65-.1-.38-.12-.86-.28-1.48-.55a8.92 8.92 0 0 1-3.55-3.12c-.96-1.31-1.61-2.93-1.66-3.06-.05-.13-.5-1.33.24-2.02Z" fill="#25D366"/>
+          </svg>
+          <span>{safe_label}</span>
+        </a>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def parse_db_date(value) -> date:
