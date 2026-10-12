@@ -656,11 +656,16 @@ if page == 'Home':
     st.caption('Unpaid balances carry forward until the recipient confirms receipt. They never reset each week.')
 
     # Fast phone actions: prepare live data and hand it to WhatsApp.
-    home_summary = 'District 11 · Outstanding balances\\n\\n' + (
-        '\\n'.join(
-            f"{member_name[t['from_member_id']]} owes {member_name[t['to_member_id']]} {money(t['amount_pence'])}"
-            for t in transfers
-        ) if transfers else 'Everyone is settled.'
+    home_summary = '\n'.join(
+        ['*District 11*', '*Outstanding balances*', '']
+        + (
+            [
+                f"• {member_name[t['from_member_id']]} owes {member_name[t['to_member_id']]}: *{money(t['amount_pence'])}*"
+                for t in transfers
+            ]
+            + ['', f"*Total outstanding: {money(sum(t['amount_pence'] for t in transfers))}*"]
+            if transfers else ['Everyone is settled up ✓']
+        )
     )
     share1, share2 = st.columns(2)
     with share1:
