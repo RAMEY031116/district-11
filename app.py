@@ -32,6 +32,10 @@ st.set_page_config(
     initial_sidebar_state='collapsed',
 )
 
+# Separate welcome artwork; the navigation logo stays unchanged.
+from base64 import b64encode
+WELCOME_ART_BASE64 = b64encode((Path(__file__).parent / 'assets' / 'd11_welcome_art.svg').read_bytes()).decode('ascii')
+
 # Show the housemates' original artwork once per browser session.
 # This appears after Streamlit starts rendering; the server boot screen is separate.
 if not st.session_state.get('d11_welcome_shown', False):
@@ -40,24 +44,24 @@ if not st.session_state.get('d11_welcome_shown', False):
         f"""
 <style>
 @keyframes d11-welcome-out {{
-  0%, 76% {{opacity:1; visibility:visible;}}
+  0%, 85% {{opacity:1; visibility:visible;}}
   100% {{opacity:0; visibility:hidden;}}
 }}
 .d11-welcome {{
   position:fixed; inset:0; z-index:999999; background:#090d14;
   display:flex; flex-direction:column; justify-content:center; align-items:center;
   gap:16px; text-align:center; pointer-events:none;
-  animation:d11-welcome-out 1.3s ease-out forwards;
+  animation:d11-welcome-out 3.2s ease-out forwards;
 }}
-.d11-welcome img {{width:96px;max-width:30vw;height:96px;aspect-ratio:1;image-rendering:auto;
+.d11-welcome img {{width:min(72vw,300px);height:auto;aspect-ratio:1;image-rendering:auto;
   object-fit:cover;border-radius:50%;}}
 .d11-welcome strong {{color:#fff;font:700 23px system-ui,sans-serif;}}
 @media (prefers-reduced-motion:reduce) {{
- .d11-welcome {{animation-duration:1s;}}
+ .d11-welcome {{animation-duration:3.2s;}}
 }}
 </style>
 <div class="d11-welcome" aria-label="Welcome to District 11">
-  <img src="data:image/jpeg;base64,{APP_ICON_BASE64}" alt="District 11 housemates' drawing">
+  <img src="data:image/svg+xml;base64,{WELCOME_ART_BASE64}" alt="District 11 housemates' drawing">
   <strong>Welcome to District 11</strong>
 </div>
 """,
