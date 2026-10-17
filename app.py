@@ -33,8 +33,7 @@ st.set_page_config(
 )
 
 # Separate welcome artwork; the navigation logo stays unchanged.
-from base64 import b64encode
-WELCOME_ART_BASE64 = b64encode((Path(__file__).parent / 'assets' / 'd11_welcome_art.svg').read_bytes()).decode('ascii')
+WELCOME_ART_BASE64 = (Path(__file__).parent / 'assets' / 'd11_welcome_image.b64').read_text(encoding='ascii').strip()
 
 # Show the housemates' original artwork once per browser session.
 # This appears after Streamlit starts rendering; the server boot screen is separate.
@@ -53,7 +52,7 @@ if not st.session_state.get('d11_welcome_shown', False):
   gap:16px; text-align:center; pointer-events:none;
   animation:d11-welcome-out 3.2s ease-out forwards;
 }}
-.d11-welcome img {{width:min(72vw,300px);height:auto;aspect-ratio:1;image-rendering:auto;
+.d11-welcome img {{width:min(46vw,160px);height:auto;aspect-ratio:1;image-rendering:auto;
   object-fit:cover;border-radius:50%;}}
 .d11-welcome strong {{color:#fff;font:700 23px system-ui,sans-serif;}}
 @media (prefers-reduced-motion:reduce) {{
@@ -61,7 +60,7 @@ if not st.session_state.get('d11_welcome_shown', False):
 }}
 </style>
 <div class="d11-welcome" aria-label="Welcome to District 11">
-  <img src="data:image/svg+xml;base64,{WELCOME_ART_BASE64}" alt="District 11 housemates' drawing">
+  <img src="data:image/jpeg;base64,{WELCOME_ART_BASE64}" alt="District 11 housemates' drawing">
   <strong>Welcome to District 11</strong>
 </div>
 """,
