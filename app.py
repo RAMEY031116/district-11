@@ -16,7 +16,7 @@ import db
 from calculations import calculate_balances, equal_split, minimize_transfers, money, to_pence, week_bounds
 
 # Shared logo for the app header and browser favicon.
-APP_ICON_BASE64 = (Path(__file__).parent / 'assets' / 'housemate_logo.b64').read_text(encoding='ascii').strip()
+APP_ICON_BASE64 = (Path(__file__).parent / 'assets' / 'd11_approved_2026.b64').read_text(encoding='ascii').strip()
 
 # Validate the image before handing it to Streamlit; fall back to a safe icon on failure.
 try:
@@ -589,7 +589,7 @@ if not st.session_state.get('home_preference_ready') and isinstance(preference, 
 # ---------- Simple navigation ----------
 st.markdown(
     "<div style='display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 .65rem'>"
-    f"<span class='brand' style='display:flex;align-items:center;gap:10px'><img src='data:image/png;base64,{APP_ICON_BASE64}' alt='District 11 logo' width='40' height='40' style='border-radius:10px'><span>District 11</span></span>"
+    f"<span class='brand' style='display:flex;align-items:center;gap:10px'><img src='data:image/jpeg;base64,{APP_ICON_BASE64}' alt='District 11 logo' width='40' height='40' style='border-radius:10px'><span>District 11</span></span>"
     f"<span style='color:#94a3b8;font-size:.82rem'>{escape(' · '.join(m['name'] for m in members))}</span>"
     "</div>",
     unsafe_allow_html=True,
