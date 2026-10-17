@@ -49,7 +49,7 @@ if not st.session_state.get('d11_welcome_shown', False):
   gap:16px; text-align:center; pointer-events:none;
   animation:d11-welcome-out 1.3s ease-out forwards;
 }}
-.d11-welcome img {{width:min(56vw,190px);height:auto;aspect-ratio:1;
+.d11-welcome img {{width:96px;max-width:30vw;height:96px;aspect-ratio:1;image-rendering:auto;
   object-fit:cover;border-radius:50%;}}
 .d11-welcome strong {{color:#fff;font:700 23px system-ui,sans-serif;}}
 @media (prefers-reduced-motion:reduce) {{
