@@ -25,26 +25,6 @@ st.set_page_config(
     initial_sidebar_state='collapsed',
 )
 
-# Branded loading overlay: appears as soon as Streamlit renders the app,
-# then fades away after the initial page settles. Streamlit's server boot
-# screen happens earlier and cannot be replaced by app-level Python.
-st.markdown(
-    f"""<style>
-    #district11-splash {{position:fixed;inset:0;z-index:999999;background:#090d14;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      gap:20px;animation:d11-hide .6s ease 1.7s forwards;pointer-events:none;}}
-    #district11-splash img {{width:min(56vw,220px);height:auto;border-radius:50%;}}
-    #district11-splash p {{font:700 16px system-ui;color:#fff;letter-spacing:.08em;}}
-    #district11-splash .spinner {{width:28px;height:28px;border:3px solid #26344a;
-      border-top-color:#ed1835;border-radius:50%;animation:d11-spin .8s linear infinite;}}
-    @keyframes d11-spin {{to {{transform:rotate(360deg)}}}}
-    @keyframes d11-hide {{to {{opacity:0;visibility:hidden}}}}
-    </style><div id='district11-splash' aria-label='Loading District 11'>
-      <img src='data:image/png;base64,{APP_ICON_BASE64}' alt='District 11 logo'>
-      <p>Loading District 11…</p><div class='spinner'></div></div>""",
-    unsafe_allow_html=True,
-)
-
 # ---------- Dark portal styling ----------
 st.markdown(
     r'''
