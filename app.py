@@ -984,7 +984,7 @@ elif page == 'Balance':
         final = sum(row['change_pence'] for row in rows)
         status = 'owed' if final > 0 else 'owes' if final < 0 else 'settled'
         st.markdown(f"**{member_name[mid]} · {status} {money(abs(final))}**")
-        st.caption('Positive = money to receive; negative = money to pay. Confirmed payments reduce the balance.')
+        st.caption('Check each dated expense and confirmed payment below. Credit for paying minus your share explains each change. A lower net amount does not necessarily mean someone paid you.')
         if rows:
             st.dataframe([{'Date': r['date'], 'Activity': r['description'], 'Details': r['detail'],
                            'Credit for paying': money(r['credit_pence']), 'Your share': money(r['share_pence']),
@@ -994,7 +994,14 @@ elif page == 'Balance':
             st.info('No expenses or confirmed payments for this person.')
         st.caption('Credit uses the total rounded shares, so the breakdown matches the app’s penny-rounding calculation.')
 
-    with st.expander('Why this balance? · All-time breakdown'):
+    st.info(
+        "HOW NET SETTLEMENT WORKS: If someone adds an expense they paid for, "
+        "their amount to receive may go up, and what they owe someone else may go down. "
+        "That is an offset between expenses, NOT proof that anybody sent money. "
+        "Only entries labelled as confirmed payments represent money recorded as received. "
+        "All expenses and confirmed payments from every week are included."
+    )
+    with st.expander('Track why amounts changed · All-time activity', expanded=True):
         if members:
             preferred = st.session_state.get('home_member_id')
             ids = [m['id'] for m in members]
